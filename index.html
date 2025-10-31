@@ -9,14 +9,15 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
   <style>
     body { padding-top: 20px; }
     .card { margin-bottom: 15px; }
     .hidden { display: none; }
     .defaulter { color: red; }
+    #errorMsg { color: red; text-align: center; margin: 10px; }
   </style>
 </head>
 <body class="container">
@@ -73,8 +74,9 @@
   </table>
 </div>
 
+<p id="errorMsg" class="hidden"></p>
+
 <!-- ==================== MODALS ==================== -->
-<!-- Member Modal -->
 <div class="modal fade" id="memberModal">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -91,7 +93,6 @@
   </div>
 </div>
 
-<!-- Saving Form -->
 <div id="savingForm" class="hidden card p-3 mt-3">
   <h5>Add Monthly Saving</h5>
   <select id="sMember" class="form-select mb-2"></select>
@@ -101,7 +102,6 @@
   <button class="btn btn-secondary ms-2" onclick="hideSavingForm()">Cancel</button>
 </div>
 
-<!-- Loan Form -->
 <div id="loanForm" class="hidden card p-3 mt-3">
   <h5>Add Loan</h5>
   <select id="lMember" class="form-select mb-2"></select>
@@ -113,34 +113,25 @@
 </div>
 
 <script>
-  // ---------- 1. Firebase Config (CHANGE THIS) ----------
+  // ---------- YOUR FIREBASE CONFIG (already inserted) ----------
   const firebaseConfig = {
-   // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBSTXmDJTX5DyO85KR62Rcx4zzlLPP7_u0",
-  authDomain: "thaleshwor-yuwa-samuh.firebaseapp.com",
-  projectId: "thaleshwor-yuwa-samuh",
-  storageBucket: "thaleshwor-yuwa-samuh.firebasestorage.app",
-  messagingSenderId: "372716860859",
-  appId: "1:372716860859:web:40de331870a5e4de5b409e",
-  measurementId: "G-SPEN77HFE2"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+    apiKey: "AIzaSyBSTXmDJTX5DyO85KR62Rcx4zzlLPP7_u0",
+    authDomain: "thaleshwor-yuwa-samuh.firebaseapp.com",
+    projectId: "thaleshwor-yuwa-samuh",
+    storageBucket: "thaleshwor-yuwa-samuh.firebasestorage.app",
+    messagingSenderId: "372716860859",
+    appId: "1:372716860859:web:40de331870a5e4de5b409e",
+    measurementId: "G-SPEN77HFE2"
   };
-  // ----------------------------------------------------
+  // -----------------------------------------------------------
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+  let db;
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  } catch (e) {
+    showError('Firebase init error: ' + e.message);
+  }
 
   let isAdmin = false;
   let members = [], savings = [], loans = [], payments = [];
@@ -158,221 +149,216 @@ const analytics = getAnalytics(app);
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('appSection').classList.remove('hidden');
     document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
-    loadData();
+    if (db) loadData();
+    else showError('Database not ready.');
   }
 
-  // ---------- Load All Data ----------
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  // ---------- Load Data ----------
   async function loadData() {
-    members = await db.collection('members').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
-    savings = await db.collection('savings').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
-    loans = await db.collection('loans').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
-    payments = await db.collection('payments').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
-    renderAll();
+    try {
+      const [m, s, l, p] = await Promise.all([
+        db.collection('members').get(),
+        db.collection('savings').get(),
+        db.collection('loans').get(),
+        db.collection('payments').get()
+      ]);
+      members = m.docs.map(d => ({id: d.id, ...d.data()}));
+      savings = s.docs.map(d => ({id: d.id, ...d.data()}));
+      loans   = l.docs.map(d => ({id: d.id, ...d.data()}));
+      payments= p.docs.map(d => ({id: d.id, ...d.data()}));
+      renderAll();
+    } catch (e) { showError('Load error: ' + e.message); }
   }
 
   // ---------- Render ----------
   function renderAll() {
-    renderMembers();
-    renderDashboard();
-    renderCharts();
-    renderDefaulters();
-    fillSelects();
+    renderMembers(); renderDashboard(); renderCharts(); renderDefaulters(); fillSelects();
   }
 
-  // Members Table
   function renderMembers() {
     const tbody = document.getElementById('memberTable');
     tbody.innerHTML = '';
     members.forEach(m => {
-      const sav = savings.filter(s => s.memberId === m.id).reduce((a,b)=>a+b.amount,0);
-      const ln = loans.filter(l => l.memberId === m.id && l.status !== 'closed').reduce((a,b)=>a+b.principal,0);
-      const row = `<tr>
-        <td>${m.name}</td>
-        <td>${m.phone}</td>
-        <td>${sav}</td>
-        <td>${ln}</td>
-        <td>
-          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="editMember('${m.id}')">Edit</button>
-          <button class="btn btn-sm btn-danger ms-1" onclick="deleteMember('${m.id}')">Del</button>` : ''}
-        </td>
+      const sav = savings.filter(x=>x.memberId===m.id).reduce((a,b)=>a+b.amount,0);
+      const ln  = loans.filter(x=>x.memberId===m.id && x.status!=='closed').reduce((a,b)=>a+b.principal,0);
+      tbody.innerHTML += `<tr>
+        <td>${m.name}</td><td>${m.phone}</td><td>${sav.toFixed(2)}</td><td>${ln.toFixed(2)}</td>
+        <td>${isAdmin?`<button class="btn btn-sm btn-primary" onclick="editMember('${m.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger ms-1" onclick="deleteMember('${m.id}')">Del</button>`:''}</td>
       </tr>`;
-      tbody.innerHTML += row;
     });
   }
 
-  // Dashboard Cards
   function renderDashboard() {
     const totalM = members.length;
     const totalS = savings.reduce((a,b)=>a+b.amount,0);
-    const totalL = loans.filter(l=>l.status!=='closed').reduce((a,b)=>a+b.principal,0);
+    const totalL = loans.filter(x=>x.status!=='closed').reduce((a,b)=>a+b.principal,0);
     const growth = calculateGrowth();
     document.getElementById('totalMembers').textContent = totalM;
-    document.getElementById('totalSaving').textContent = totalS.toFixed(2);
-    document.getElementById('totalLoan').textContent = totalL.toFixed(2);
-    document.getElementById('growthRate').textContent = growth.toFixed(2)+'%';
+    document.getElementById('totalSaving').textContent   = totalS.toFixed(2);
+    document.getElementById('totalLoan').textContent     = totalL.toFixed(2);
+    document.getElementById('growthRate').textContent    = growth.toFixed(2)+'%';
   }
 
   function calculateGrowth() {
     const now = new Date();
-    const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const prevMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
-    const curSav = savings.filter(s=>s.month===curMonth).reduce((a,b)=>a+b.amount,0);
-    const prevSav = savings.filter(s=>s.month===prevMonth).reduce((a,b)=>a+b.amount,0);
-    if (prevSav===0) return 0;
-    return ((curSav-prevSav)/prevSav)*100;
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const prev= `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
+    const curSav = savings.filter(x=>x.month===cur).reduce((a,b)=>a+b.amount,0);
+    const prevSav= savings.filter(x=>x.month===prev).reduce((a,b)=>a+b.amount,0);
+    return prevSav===0 ? 0 : ((curSav-prevSav)/prevSav)*100;
   }
 
-  // Charts
   let savingChart, loanPie;
   function renderCharts() {
-    // Saving line chart (last 6 months)
-    const months = [];
-    const savData = [];
-    for (let i=5; i>=0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth()-i);
-      const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    // Saving line (last 6 months)
+    const months=[], data=[];
+    for(let i=5;i>=0;i--){
+      const d=new Date(); d.setMonth(d.getMonth()-i);
+      const m=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       months.push(m);
-      savData.push(savings.filter(s=>s.month===m).reduce((a,b)=>a+b.amount,0));
+      data.push(savings.filter(x=>x.month===m).reduce((a,b)=>a+b.amount,0));
     }
-    if (savingChart) savingChart.destroy();
-    savingChart = new Chart(document.getElementById('savingChart'), {
-      type: 'line',
-      data: { labels: months, datasets: [{ label: 'Savings', data: savData, borderColor: 'green', fill: false }] }
+    if(savingChart) savingChart.destroy();
+    savingChart = new Chart(document.getElementById('savingChart'),{
+      type:'line', data:{labels:months,datasets:[{label:'Savings',data,borderColor:'green',fill:false}]}
     });
 
     // Loan pie
-    const loanLabels = [], loanVals = [];
-    members.forEach(m => {
-      const amt = loans.filter(l=>l.memberId===m.id && l.status!=='closed').reduce((a,b)=>a+b.principal,0);
-      if (amt>0) { loanLabels.push(m.name); loanVals.push(amt); }
+    const labels=[], vals=[];
+    members.forEach(m=>{
+      const amt=loans.filter(x=>x.memberId===m.id && x.status!=='closed').reduce((a,b)=>a+b.principal,0);
+      if(amt>0){labels.push(m.name); vals.push(amt);}
     });
-    if (loanPie) loanPie.destroy();
-    loanPie = new Chart(document.getElementById('loanPie'), {
-      type: 'pie',
-      data: { labels: loanLabels, datasets: [{ data: loanVals, backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF'] }] }
+    if(loanPie) loanPie.destroy();
+    loanPie = new Chart(document.getElementById('loanPie'),{
+      type:'pie', data:{labels,datasets:[{data:vals,backgroundColor:['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF']}]}
     });
   }
 
-  // Defaulters
   function renderDefaulters() {
-    const now = new Date();
-    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    let html = '<h5>Saving Defaulters</h5><ul>';
-    members.forEach(m => {
-      const paid = savings.some(s => s.memberId===m.id && s.month===cur);
-      if (!paid) html += `<li class="defaulter">${m.name} (Saving)</li>`;
-    });
-    html += '</ul><h5>Interest Defaulters</h5><ul>';
-    loans.filter(l=>l.status!=='closed').forEach(l => {
-      const member = members.find(m=>m.id===l.memberId);
+    const now=new Date();
+    const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    let html='<h5>Saving Defaulters</h5><ul>';
+    members.forEach(m=>{ if(!savings.some(x=>x.memberId===m.id && x.month===cur)) html+=`<li class="defaulter">${m.name} (Saving)</li>`; });
+    html+='</ul><h5>Interest Defaulters</h5><ul>';
+    loans.filter(l=>l.status!=='closed').forEach(l=>{
+      const mem=members.find(m=>m.id===l.memberId);
+      if(!mem) return;
       const dueMonth = getDueMonth(l.startDate);
-      const paid = payments.some(p => p.loanId===l.id && p.month===dueMonth);
-      if (dueMonth===cur && !paid) html += `<li class="defaulter">${member.name} (Loan Interest)</li>`;
+      const paid = payments.some(p=>p.loanId===l.id && p.month===dueMonth);
+      if(dueMonth===cur && !paid) html+=`<li class="defaulter">${mem.name} (Interest)</li>`;
     });
-    html += '</ul>';
-    document.getElementById('defaulters').innerHTML = html;
+    html+='</ul>';
+    document.getElementById('defaulters').innerHTML = html || '<p>No defaulters.</p>';
   }
 
-  function getDueMonth(start) {
-    const s = new Date(start);
-    const now = new Date();
-    if (now.getMonth() === s.getMonth() && now.getFullYear()===s.getFullYear()) return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    return `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}`;
+  function getDueMonth(start){
+    const s=new Date(start);
+    const n=new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
   }
 
-  // ---------- Admin Actions ----------
-  // Member
-  function editMember(id) {
-    const m = members.find(x=>x.id===id);
-    document.getElementById('editId').value = id;
-    document.getElementById('mName').value = m.name;
-    document.getElementById('mPhone').value = m.phone;
+  // ---------- Admin ----------
+  function editMember(id){
+    const m=members.find(x=>x.id===id);
+    if(!m) return;
+    document.getElementById('editId').value=id;
+    document.getElementById('mName').value=m.name;
+    document.getElementById('mPhone').value=m.phone;
     new bootstrap.Modal(document.getElementById('memberModal')).show();
   }
 
-  async function saveMember() {
-    const id = document.getElementById('editId').value;
-    const data = { name: document.getElementById('mName').value.trim(), phone: document.getElementById('mPhone').value.trim() };
-    if (id) await db.collection('members').doc(id).update(data);
-    else await db.collection('members').add(data);
-    bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
-    loadData();
+  async function saveMember(){
+    const id=document.getElementById('editId').value;
+    const data={name:document.getElementById('mName').value.trim(),
+                phone:document.getElementById('mPhone').value.trim()};
+    if(!data.name) return alert('Name required');
+    try{
+      id? await db.collection('members').doc(id).update(data)
+        : await db.collection('members').add(data);
+      bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
+      loadData();
+    }catch(e){alert('Save error: '+e.message);}
   }
 
-  async function deleteMember(id) {
-    if (confirm('Delete member?')) {
-      await db.collection('members').doc(id).delete();
-      loadData();
+  async function deleteMember(id){
+    if(confirm('Delete member?')){
+      try{ await db.collection('members').doc(id).delete(); loadData(); }
+      catch(e){alert('Delete error: '+e.message);}
     }
   }
 
-  // Saving Form
-  function showSavingForm() { document.getElementById('savingForm').classList.remove('hidden'); }
-  function hideSavingForm() { document.getElementById('savingForm').classList.add('hidden'); }
-  async function saveSaving() {
-    const memberId = document.getElementById('sMember').value;
-    const month = document.getElementById('sMonth').value;
-    const amount = parseFloat(document.getElementById('sAmount').value);
-    if (!memberId || !month || isNaN(amount)) return alert('Fill all');
-    await db.collection('savings').add({ memberId, month, amount });
-    hideSavingForm();
-    loadData();
+  function showSavingForm(){ document.getElementById('savingForm').classList.remove('hidden'); }
+  function hideSavingForm(){ document.getElementById('savingForm').classList.add('hidden'); }
+  async function saveSaving(){
+    const memberId=document.getElementById('sMember').value;
+    const month=document.getElementById('sMonth').value;
+    const amount=parseFloat(document.getElementById('sAmount').value);
+    if(!memberId||!month||isNaN(amount)||amount<=0) return alert('Fill valid data');
+    try{
+      await db.collection('savings').add({memberId,month,amount});
+      hideSavingForm(); document.getElementById('sAmount').value=''; loadData();
+    }catch(e){alert('Save error: '+e.message);}
   }
 
-  // Loan Form
-  function showLoanForm() { document.getElementById('loanForm').classList.remove('hidden'); }
-  function hideLoanForm() { document.getElementById('loanForm').classList.add('hidden'); }
-  async function saveLoan() {
-    const memberId = document.getElementById('lMember').value;
-    const principal = parseFloat(document.getElementById('lPrincipal').value);
-    const rate = parseFloat(document.getElementById('lRate').value);
-    const start = document.getElementById('lStart').value;
-    if (!memberId || isNaN(principal) || isNaN(rate) || !start) return alert('Fill all');
-    await db.collection('loans').add({ memberId, principal, rate, startDate: start, status: 'active' });
-    hideLoanForm();
-    loadData();
+  function showLoanForm(){ document.getElementById('loanForm').classList.remove('hidden'); }
+  function hideLoanForm(){ document.getElementById('loanForm').classList.add('hidden'); }
+  async function saveLoan(){
+    const memberId=document.getElementById('lMember').value;
+    const principal=parseFloat(document.getElementById('lPrincipal').value);
+    const rate=parseFloat(document.getElementById('lRate').value);
+    const start=document.getElementById('lStart').value;
+    if(!memberId||isNaN(principal)||principal<=0||isNaN(rate)||rate<=0||!start) return alert('Fill valid data');
+    try{
+      await db.collection('loans').add({memberId,principal,rate,startDate:start,status:'active'});
+      hideLoanForm(); loadData();
+    }catch(e){alert('Save error: '+e.message);}
   }
 
-  // Pay Interest (lump-sum for current month)
-  async function payInterest() {
-    const now = new Date();
-    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    let totalDue = 0;
-    const dueList = [];
-    loans.filter(l=>l.status!=='closed').forEach(l => {
-      const dueMonth = getDueMonth(l.startDate);
-      const alreadyPaid = payments.some(p=>p.loanId===l.id && p.month===dueMonth);
-      if (dueMonth===cur && !alreadyPaid) {
-        const monthlyInt = l.principal * (l.rate/100) / 12;
-        totalDue += monthlyInt;
-        dueList.push({loanId: l.id, amount: monthlyInt, month: cur});
+  async function payInterest(){
+    const now=new Date();
+    const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const due=[];
+    let total=0;
+    loans.filter(l=>l.status!=='closed').forEach(l=>{
+      const dueMonth=getDueMonth(l.startDate);
+      const paid=payments.some(p=>p.loanId===l.id && p.month===dueMonth);
+      if(dueMonth===cur && !paid){
+        const int=l.principal*(l.rate/100)/12;
+        total+=int;
+        due.push({loanId:l.id,amount:int,month:cur});
       }
     });
-    if (totalDue===0) return alert('No interest due this month');
-    if (confirm(`Pay Rs. ${totalDue.toFixed(2)} interest?`)) {
-      for (const d of dueList) {
-        await db.collection('payments').add(d);
-      }
-      loadData();
+    if(total===0) return alert('No interest due');
+    if(confirm(`Pay Rs. ${total.toFixed(2)} interest?`)){
+      try{
+        for(const d of due) await db.collection('payments').add(d);
+        alert('Interest paid!');
+        loadData();
+      }catch(e){alert('Pay error: '+e.message);}
     }
   }
 
-  // Fill member selects
-  function fillSelects() {
-    const sSel = document.getElementById('sMember');
-    const lSel = document.getElementById('lMember');
-    sSel.innerHTML = lSel.innerHTML = '';
-    members.forEach(m => {
-      const opt = `<option value="${m.id}">${m.name}</option>`;
-      sSel.innerHTML += opt; lSel.innerHTML += opt;
-    });
+  function fillSelects(){
+    const s=document.getElementById('sMember'), l=document.getElementById('lMember');
+    s.innerHTML='<option value="">Select Member</option>';
+    l.innerHTML='<option value="">Select Member</option>';
+    members.forEach(m=>{ const o=`<option value="${m.id}">${m.name}</option>`; s.innerHTML+=o; l.innerHTML+=o; });
+    const now=new Date();
+    document.getElementById('sMonth').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   }
 
-  // ---------- Bootstrap JS ----------
-  const bsScript = document.createElement('script');
-  bsScript.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
-  document.body.appendChild(bsScript);
+  // Bootstrap JS
+  const bs=document.createElement('script');
+  bs.src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
+  document.body.appendChild(bs);
 </script>
 
 </body>
