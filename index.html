@@ -15,38 +15,54 @@
   <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 
   <style>
-    :root { --primary:#0d6efd; --success:#198754; --danger:#dc3545; --warning:#ffc107; }
-    body { background:#f4f6f9; font-family:'Segoe UI',sans-serif; }
-    .card { border:none; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.07); transition:transform .2s; }
-    .card:hover { transform:translateY(-4px); }
+    :root { --primary:#0d6efd; --success:#198754; --danger:#dc3545; --warning:#ffc107; --info:#0dcaf0; }
+    body { background:#f8f9fa; font-family:'Segoe UI',sans-serif; }
+    .sidebar { position:fixed; top:0; left:0; height:100vh; width:260px; background:#2c3e50; color:#fff; padding-top:20px; z-index:1000; }
+    .sidebar .nav-link { color:#bdc3c7; padding:12px 20px; border-radius:8px; margin:4px 15px; transition:all .2s; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; color:#fff; }
+    .sidebar .nav-link i { width:24px; }
+    .main-content { margin-left:260px; padding:20px; }
+    .stat-card { border-radius:12px; padding:16px; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.1); }
+    .stat-card h5 { font-size:0.9rem; opacity:0.9; margin:0; }
+    .stat-card p { font-size:1.7rem; font-weight:700; margin:8px 0 0; }
+    .card { border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.07); }
     .card-header { border-radius:12px 12px 0 0; font-weight:600; }
-    .btn { border-radius:8px; }
-    .navbar { box-shadow:0 2px 8px rgba(0,0,0,.1); }
-    .stat-card { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
-    .stat-card .card-body h5 { font-size:1rem; opacity:.9; }
-    .stat-card .card-body p { font-size:1.8rem; font-weight:700; }
+    .table th { font-weight:600; color:#495057; }
+    .badge { font-size:0.8rem; }
     .hidden { display:none !important; }
-    .defaulter { color:var(--danger); font-weight:500; }
-    .modal-content { border-radius:12px; }
-    #errorMsg { background:#ffebee; color:#c62828; padding:12px; border-radius:8px; margin-top:1rem; }
-    .chart-container { position:relative; height:280px; }
+    #errorMsg { background:#ffebee; color:#c62828; padding:12px; border-radius:8px; margin:1rem 0; }
+    .search-input { max-width:300px; }
+    .chart-container { position:relative; height:300px; }
+    .user-info { position:fixed; bottom:20px; left:20px; background:#2c3e50; color:#fff; padding:10px 16px; border-radius:50px; font-size:0.9rem; }
   </style>
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="#"><i class="bi bi-bank"></i> Thaleshwor Yuwa Samuh</a>
-    <span class="navbar-text ms-auto" id="userRole"></span>
-    <button class="btn btn-outline-light ms-3" onclick="logout()">Logout</button>
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="text-center mb-4">
+    <h4><i class="bi bi-bank"></i> Thaleshwor Yuwa Samuh</h4>
   </div>
-</nav>
+  <nav class="nav flex-column">
+    <a class="nav-link active" href="#" onclick="showPage('dashboard')"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a class="nav-link" href="#" onclick="showPage('members')"><i class="bi bi-people"></i> Members</a>
+    <a class="nav-link" href="#" onclick="showPage('savings')"><i class="bi bi-piggy-bank"></i> Savings</a>
+    <a class="nav-link" href="#" onclick="showPage('loans')"><i class="bi bi-cash-stack"></i> Loans</a>
+    <a class="nav-link" href="#" onclick="showPage('payments')"><i class="bi bi-receipt"></i> Payments</a>
+  </nav>
+</div>
 
-<div class="container mt-4">
+<!-- User Info -->
+<div class="user-info">
+  <i class="bi bi-person-circle"></i> <span id="currentUser">Guest</span>
+  <button class="btn btn-sm btn-outline-light ms-2" onclick="logout()">Logout</button>
+</div>
 
-  <!-- ==================== LOGIN ==================== -->
-  <div id="loginSection" class="card mx-auto p-4" style="max-width:420px;">
+<!-- Main Content -->
+<div class="main-content">
+
+  <!-- Login -->
+  <div id="loginPage" class="card mx-auto p-4" style="max-width:420px; margin-top:10vh;">
     <h3 class="text-center mb-4"><i class="bi bi-box-arrow-in-right"></i> Login</h3>
     <div class="mb-3">
       <label class="form-label">Username</label>
@@ -60,55 +76,143 @@
     <p id="loginMsg" class="text-danger text-center mt-2"></p>
   </div>
 
-  <!-- ==================== MAIN APP ==================== -->
-  <div id="appSection" class="hidden">
-
-    <!-- Stats -->
+  <!-- Dashboard -->
+  <div id="dashboardPage" class="hidden">
+    <h2>Dashboard</h2>
+    <p class="text-muted">Cooperative Microfinance Overview</p>
     <div class="row g-3 mb-4">
-      <div class="col-md-3"><div class="card stat-card"><div class="card-body text-center"><h5>Members</h5><p id="totalMembers">0</p></div></div></div>
-      <div class="col-md-3"><div class="card stat-card"><div class="card-body text-center"><h5>Total Saving</h5><p id="totalSaving">0</p></div></div></div>
-      <div class="col-md-3"><div class="card stat-card"><div class="card-body text-center"><h5>Total Loan</h5><p id="totalLoan">0</p></div></div></div>
-      <div class="col-md-3"><div class="card stat-card"><div class="card-body text-center"><h5>Growth %</h5><p id="growthRate">0</p></div></div></div>
+      <div class="col-md-3"><div class="stat-card bg-primary"><h5>Total Members</h5><p id="dashMembers">0</p></div></div>
+      <div class="col-md-3"><div class="stat-card bg-success"><h5>Total Savings</h5><p id="dashSavings">0</p></div></div>
+      <div class="col-md-3"><div class="stat-card bg-warning text-dark"><h5>Active Loans</h5><p id="dashLoans">0</p></div></div>
+      <div class="col-md-3"><div class="stat-card bg-info"><h5>Growth Rate</h5><p id="dashGrowth">0%</p></div></div>
     </div>
 
-    <!-- Charts -->
     <div class="row g-3 mb-4">
       <div class="col-lg-6">
         <div class="card">
-          <div class="card-header bg-success text-white"><i class="bi bi-graph-up"></i> Savings (Last 6 Months)</div>
-          <div class="card-body"><div class="chart-container"><canvas id="savingChart"></canvas></div></div>
+          <div class="card-header bg-success text-white">Savings & Loans Growth</div>
+          <div class="card-body"><div class="chart-container"><canvas id="growthChart"></canvas></div></div>
         </div>
       </div>
       <div class="col-lg-6">
         <div class="card">
-          <div class="card-header bg-warning text-dark"><i class="bi bi-pie-chart"></i> Loan Distribution</div>
+          <div class="card-header bg-warning text-dark">Loan Distribution (Top 5)</div>
           <div class="card-body"><div class="chart-container"><canvas id="loanPie"></canvas></div></div>
         </div>
       </div>
     </div>
 
-    <!-- Defaulters -->
-    <div class="card mb-4">
-      <div class="card-header bg-danger text-white"><i class="bi bi-exclamation-triangle"></i> Defaulters (Current Month)</div>
-      <div class="card-body" id="defaulters"></div>
-    </div>
-
-    <!-- Admin Buttons -->
-    <div id="adminControls" class="hidden mb-4">
-      <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#memberModal"><i class="bi bi-person-plus"></i> Add Member</button>
-      <button class="btn btn-info me-2" onclick="showSavingForm()"><i class="bi bi-piggy-bank"></i> Add Saving</button>
-      <button class="btn btn-warning me-2" onclick="showLoanForm()"><i class="bi bi-cash-stack"></i> Add Loan</button>
-      <button class="btn btn-danger me-2" onclick="payInterest()"><i class="bi bi-currency-exchange"></i> Pay Interest</button>
-    </div>
-
-    <!-- Members Table -->
     <div class="card">
-      <div class="card-header bg-primary text-white"><i class="bi bi-people"></i> Members</div>
-      <div class="card-body p-0">
+      <div class="card-header bg-danger text-white">Monthly Defaulters</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Savings Defaulters</h6>
+            <p id="savingDefaulters">0 members who haven't paid this month</p>
+          </div>
+          <div class="col-md-6">
+            <h6>Loan Interest Defaulters</h6>
+            <p id="interestDefaulters">0 loans without interest payment this month</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Members -->
+  <div id="membersPage" class="hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2>Members</h2>
+        <p class="text-muted">Manage cooperative members</p>
+      </div>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">+ Add Member</button>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-3">
+          <p>All Members (<span id="memberCount">0</span>)</p>
+          <input type="text" class="form-control search-input" placeholder="Search members..." onkeyup="searchMembers(this.value)">
+        </div>
         <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead class="table-light"><tr><th>Name</th><th>Phone</th><th>Saving</th><th>Loan</th><th class="text-end">Action</th></tr></thead>
-            <tbody id="memberTable"></tbody>
+          <table class="table table-hover">
+            <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Join Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="membersTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Savings -->
+  <div id="savingsPage" class="hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2>Monthly Savings</h2>
+        <p class="text-muted">Track member savings contributions</p>
+      </div>
+      <button class="btn btn-success" onclick="showSavingForm()">+ Record Saving</button>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-3">
+          <p>Savings Records (<span id="savingCount">0</span>)</p>
+          <input type="text" class="form-control search-input" placeholder="Search by member..." onkeyup="searchSavings(this.value)">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead><tr><th>Member</th><th>Amount</th><th>Month</th><th>Payment Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="savingsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loans -->
+  <div id="loansPage" class="hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2>Loans</h2>
+        <p class="text-muted">Manage member loans and distributions</p>
+      </div>
+      <button class="btn btn-warning" onclick="showLoanForm()">+ Distribute Loan</button>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-3">
+          <p>All Loans (<span id="loanCount">0</span>)</p>
+          <input type="text" class="form-control search-input" placeholder="Search by member..." onkeyup="searchLoans(this.value)">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead><tr><th>Member</th><th>Principal</th><th>Balance</th><th>Interest Rate</th><th>Monthly Interest</th><th>Loan Date</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="loansTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payments -->
+  <div id="paymentsPage" class="hidden">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2>Loan Payments</h2>
+        <p class="text-muted">Track monthly interest and principal payments</p>
+      </div>
+      <button class="btn btn-info" onclick="payInterest()">+ Record Payment</button>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-3">
+          <p>Payment Records (<span id="paymentCount">0</span>)</p>
+          <input type="text" class="form-control search-input" placeholder="Search by member..." onkeyup="searchPayments(this.value)">
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead><tr><th>Member</th><th>Payment Month</th><th>Interest Paid</th><th>Principal Paid</th><th>Total Paid</th><th>Payment Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="paymentsTable"></tbody>
           </table>
         </div>
       </div>
@@ -118,39 +222,41 @@
   <p id="errorMsg" class="hidden"></p>
 </div>
 
-<!-- ==================== MODALS ==================== -->
-<div class="modal fade" id="memberModal" tabindex="-1">
+<!-- Member Modal -->
+<div class="modal fade" id="memberModal">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header"><h5><i class="bi bi-person"></i> Member</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header"><h5>Add / Edit Member</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <input type="hidden" id="editId">
-        <div class="mb-3"><label class="form-label">Name</label><input id="mName" class="form-control"></div>
-        <div class="mb-3"><label class="form-label">Phone</label><input id="mPhone" class="form-control"></div>
+        <input type="hidden" id="editMemberId">
+        <div class="mb-3"><label>Name</label><input id="memberName" class="form-control"></div>
+        <div class="mb-3"><label>Phone</label><input id="memberPhone" class="form-control"></div>
       </div>
       <div class="modal-footer"><button class="btn btn-primary" onclick="saveMember()">Save</button></div>
     </div>
   </div>
 </div>
 
+<!-- Forms -->
 <div id="savingForm" class="hidden card mt-4">
-  <div class="card-header bg-info text-white"><i class="bi bi-piggy-bank"></i> Add Monthly Saving</div>
+  <div class="card-header bg-success text-white">Record Monthly Saving</div>
   <div class="card-body">
-    <select id="sMember" class="form-select mb-3"></select>
-    <input type="month" id="sMonth" class="form-control mb-3">
-    <input type="number" id="sAmount" class="form-control mb-3" placeholder="Amount">
+    <select id="savingMember" class="form-select mb-3"></select>
+    <input type="month" id="savingMonth" class="form-control mb-3">
+    <input type="number" id="savingAmount" class="form-control mb-3" placeholder="Amount">
     <button class="btn btn-success me-2" onclick="saveSaving()">Save</button>
     <button class="btn btn-secondary" onclick="hideSavingForm()">Cancel</button>
   </div>
 </div>
 
 <div id="loanForm" class="hidden card mt-4">
-  <div class="card-header bg-warning text-dark"><i class="bi bi-cash-stack"></i> Add Loan</div>
+  <div class="card-header bg-warning text-dark">Distribute Loan</div>
   <div class="card-body">
-    <select id="lMember" class="form-select mb-3"></select>
-    <input type="number" id="lPrincipal" class="form-control mb-3" placeholder="Principal">
-    <input type="number" step="0.01" id="lRate" class="form-control mb-3" placeholder="Annual Rate %">
-    <input type="date" id="lStart" class="form-control mb-3">
+    <select id="loanMember" class="form-select mb-3"></select>
+    <input type="number" id="loanPrincipal" class="form-control mb-3" placeholder="Principal">
+    <input type="number" step="0.01" id="loanRate" class="form-control mb-3" placeholder="Annual Interest Rate %">
+    <input type="date" id="loanDate" class="form-control mb-3">
+    <input type="number" id="loanDuration" class="form-control mb-3" placeholder="Duration (months)">
     <button class="btn btn-success me-2" onclick="saveLoan()">Save</button>
     <button class="btn btn-secondary" onclick="hideLoanForm()">Cancel</button>
   </div>
@@ -169,39 +275,52 @@
   };
   // -----------------------------------------
 
-  let db;
-  try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
-  catch (e) { showError('Firebase init failed: ' + e.message); }
-
-  let isAdmin = false;
+  let db, isAdmin = false;
   let members = [], savings = [], loans = [], payments = [];
+
+  try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
+  catch (e) { showError('Firebase failed: ' + e.message); }
 
   function login() {
     const u = document.getElementById('username').value.trim();
     const p = document.getElementById('password').value;
-    if (u === 'admin' && p === 'samuh2082') { isAdmin = true; startApp(); }
-    else if (u === 'user' && p === 'password') { isAdmin = false; startApp(); }
+    if (u === 'admin' && p === 'samuh2082') { isAdmin = true; startApp('dashboard'); }
+    else if (u === 'user' && p === 'password') { isAdmin = false; startApp('dashboard'); }
     else document.getElementById('loginMsg').textContent = 'Wrong credentials';
   }
 
-  function startApp() {
-    document.getElementById('loginSection').classList.add('hidden');
-    document.getElementById('appSection').classList.remove('hidden');
-    document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
-    document.getElementById('userRole').textContent = isAdmin ? 'Admin' : 'Viewer';
-    if (db) loadData(); else showError('Database not ready');
+  function startApp(page) {
+    document.getElementById('loginPage').classList.add('hidden');
+    document.querySelectorAll('.main-content > div:not(#loginPage)').forEach(el => el.classList.add('hidden'));
+    document.getElementById(page + 'Page').classList.remove('hidden');
+    document.getElementById('currentUser').textContent = isAdmin ? 'admin' : 'viewer';
+    updateNavActive(page);
+    if (db) loadData();
   }
 
   function logout() {
-    document.getElementById('appSection').classList.add('hidden');
-    document.getElementById('loginSection').classList.remove('hidden');
+    document.getElementById('loginPage').classList.remove('hidden');
+    document.querySelectorAll('.main-content > div:not(#loginPage)').forEach(el => el.classList.add('hidden'));
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
   }
 
-  function showError(msg) {
-    const el = document.getElementById('errorMsg');
-    el.textContent = msg; el.classList.remove('hidden');
+  function showPage(page) {
+    document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
+    document.getElementById(page + 'Page').classList.remove('hidden');
+    updateNavActive(page);
+    if (page === 'members') renderMembers();
+    else if (page === 'savings') renderSavings();
+    else if (page === 'loans') renderLoans();
+    else if (page === 'payments') renderPayments();
+    else renderDashboard();
+  }
+
+  function updateNavActive(page) {
+    document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+      link.classList.remove('active');
+      if (link.onclick.toString().includes(page)) link.classList.add('active');
+    });
   }
 
   async function loadData() {
@@ -216,187 +335,277 @@
       savings = s.docs.map(d=>({id:d.id,...d.data()}));
       loans   = l.docs.map(d=>({id:d.id,...d.data()}));
       payments= p.docs.map(d=>({id:d.id,...d.data()}));
-      renderAll();
-    } catch (e) { showError('Load error: '+e.message); }
-  }
-
-  function renderAll() { renderMembers(); renderDashboard(); renderCharts(); renderDefaulters(); fillSelects(); }
-
-  function renderMembers() {
-    const tbody = document.getElementById('memberTable');
-    tbody.innerHTML = '';
-    members.forEach(m=>{
-      const sav = savings.filter(x=>x.memberId===m.id).reduce((a,b)=>a+b.amount,0);
-      const ln  = loans.filter(x=>x.memberId===m.id && x.status!=='closed').reduce((a,b)=>a+b.principal,0);
-      tbody.innerHTML += `<tr>
-        <td>${m.name}</td><td>${m.phone}</td><td>${sav.toFixed(2)}</td><td>${ln.toFixed(2)}</td>
-        <td class="text-end">
-          ${isAdmin?`<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>`:''}
-        </td>
-      </tr>`;
-    });
+      renderDashboard();
+    } catch (e) { showError('Load failed: '+e.message); }
   }
 
   function renderDashboard() {
     const totalM = members.length;
     const totalS = savings.reduce((a,b)=>a+b.amount,0);
-    const totalL = loans.filter(x=>x.status!=='closed').reduce((a,b)=>a+b.principal,0);
+    const totalL = loans.filter(l=>l.status!=='closed').reduce((a,b)=>a+b.principal,0);
     const growth = calculateGrowth();
-    document.getElementById('totalMembers').textContent = totalM;
-    document.getElementById('totalSaving').textContent   = totalS.toFixed(2);
-    document.getElementById('totalLoan').textContent     = totalL.toFixed(2);
-    document.getElementById('growthRate').textContent    = growth.toFixed(2)+'%';
+    document.getElementById('dashMembers').textContent = totalM;
+    document.getElementById('dashSavings').textContent = 'Rs.' + totalS.toFixed(0);
+    document.getElementById('dashLoans').textContent = 'Rs.' + totalL.toFixed(0);
+    document.getElementById('dashGrowth').textContent = growth.toFixed(0) + '%';
+
+    // Growth Chart
+    const months = [], savData = [], loanData = [];
+    for(let i=5; i>=0; i--){
+      const d = new Date(); d.setMonth(d.getMonth()-i);
+      const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      months.push(m.split('-')[1] + '/' + m.split('-')[0].slice(2));
+      savData.push(savings.filter(x=>x.month===m).reduce((a,b)=>a+b.amount,0));
+      loanData.push(loans.filter(x=>x.startDate<=m && x.status!=='closed').reduce((a,b)=>a+b.principal,0));
+    }
+    if(window.growthChart) window.growthChart.destroy();
+    window.growthChart = new Chart(document.getElementById('growthChart'),{
+      type:'line', data:{labels:months, datasets:[
+        {label:'Savings', data:savData, borderColor:'#198754', backgroundColor:'rgba(25,135,84,.1)', fill:true},
+        {label:'Loans', data:loanData, borderColor:'#ffc107', backgroundColor:'rgba(255,193,7,.1)', fill:true}
+      ]}, options:{responsive:true}
+    });
+
+    // Loan Pie
+    const pieLabels = [], pieData = [];
+    members.slice(0,5).forEach(m=>{
+      const amt = loans.filter(l=>l.memberId===m.id && l.status!=='closed').reduce((a,b)=>a+b.principal,0);
+      if(amt>0){ pieLabels.push(m.name); pieData.push(amt); }
+    });
+    if(window.loanPie) window.loanPie.destroy();
+    window.loanPie = new Chart(document.getElementById('loanPie'),{
+      type:'doughnut', data:{labels:pieLabels, datasets:[{data:pieData, backgroundColor:['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1']}]},
+      options:{responsive:true}
+    });
+
+    // Defaulters
+    const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const savDef = members.filter(m=>!savings.some(s=>s.memberId===m.id && s.month===cur)).length;
+    const intDef = loans.filter(l=>l.status!=='closed' && !payments.some(p=>p.loanId===l.id && p.month===cur)).length;
+    document.getElementById('savingDefaulters').textContent = savDef + ' members who haven\'t paid this month';
+    document.getElementById('interestDefaulters').textContent = intDef + ' loans without interest payment this month';
   }
 
   function calculateGrowth() {
     const now = new Date();
     const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const prev= `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
+    const prev = `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
     const curSav = savings.filter(x=>x.month===cur).reduce((a,b)=>a+b.amount,0);
-    const prevSav= savings.filter(x=>x.month===prev).reduce((a,b)=>a+b.amount,0);
-    return prevSav===0?0:((curSav-prevSav)/prevSav)*100;
+    const prevSav = savings.filter(x=>x.month===prev).reduce((a,b)=>a+b.amount,0);
+    return prevSav === 0 ? 0 : ((curSav - prevSav) / prevSav) * 100;
   }
 
-  let savingChart, loanPie;
-  function renderCharts() {
-    // Line chart – last 6 months
-    const months=[], data=[];
-    for(let i=5;i>=0;i--){
-      const d=new Date(); d.setMonth(d.getMonth()-i);
-      const m=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      months.push(m);
-      data.push(savings.filter(x=>x.month===m).reduce((a,b)=>a+b.amount,0));
-    }
-    if(savingChart) savingChart.destroy();
-    savingChart = new Chart(document.getElementById('savingChart'),{
-      type:'line',
-      data:{labels:months,datasets:[{label:'Savings',data,borderColor:'#198754',backgroundColor:'rgba(25,135,84,.1)',fill:true}]},
-      options:{responsive:true,plugins:{legend:{display:false}}}
-    });
-
-    // Pie chart – loan distribution
-    const labels=[], vals=[];
-    members.forEach(m=>{
-      const amt=loans.filter(x=>x.memberId===m.id && x.status!=='closed').reduce((a,b)=>a+b.principal,0);
-      if(amt>0){labels.push(m.name); vals.push(amt);}
-    });
-    if(loanPie) loanPie.destroy();
-    loanPie = new Chart(document.getElementById('loanPie'),{
-      type:'doughnut',
-      data:{labels,datasets:[{data:vals,backgroundColor:['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF']}]},
-      options:{responsive:true,plugins:{legend:{position:'bottom'}}}
-    });
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg; el.classList.remove('hidden');
   }
 
-  function renderDefaulters() {
-    const now=new Date();
-    const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    let html=`<h6 class="text-danger"><i class="bi bi-exclamation-circle"></i> Saving Defaulters</h6><ul class="list-unstyled">`;
-    members.forEach(m=>{ if(!savings.some(x=>x.memberId===m.id && x.month===cur)) html+=`<li class="defaulter"><i class="bi bi-person-x"></i> ${m.name}</li>`; });
-    html+=`</ul><h6 class="text-danger"><i class="bi bi-cash-coin"></i> Interest Defaulters</h6><ul class="list-unstyled">`;
-    loans.filter(l=>l.status!=='closed').forEach(l=>{
-      const mem=members.find(m=>m.id===l.memberId);
-      if(!mem) return;
-      const dueMonth = getDueMonth(l.startDate);
-      const paid = payments.some(p=>p.loanId===l.id && p.month===dueMonth);
-      if(dueMonth===cur && !paid) html+=`<li class="defaulter"><i class="bi bi-currency-exchange"></i> ${mem.name}</li>`;
+  // ---------- Members ----------
+  function renderMembers() {
+    const tbody = document.getElementById('membersTable');
+    tbody.innerHTML = '';
+    members.forEach(m => {
+      const id = 'M' + String(members.indexOf(m) + 1).padStart(3, '0');
+      tbody.innerHTML += `<tr>
+        <td>${id}</td>
+        <td>${m.name}</td>
+        <td>${m.phone || '-'}</td>
+        <td>${m.joinDate || 'Sep 10, 2025'}</td>
+        <td><span class="badge ${m.status==='active'?'bg-success':'bg-secondary'}">${m.status||'Active'}</span></td>
+        <td>
+          ${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>` : ''}
+        </td>
+      </tr>`;
     });
-    html+=`</ul>`;
-    document.getElementById('defaulters').innerHTML = html || '<p class="text-success">No defaulters this month.</p>';
+    document.getElementById('memberCount').textContent = members.length;
   }
 
-  function getDueMonth(start){
-    return `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`; // current month
-  }
-
-  // ---------- ADMIN ----------
-  function editMember(id){
-    const m=members.find(x=>x.id===id);
-    document.getElementById('editId').value=id;
-    document.getElementById('mName').value=m.name;
-    document.getElementById('mPhone').value=m.phone;
+  function editMember(id) {
+    const m = members.find(x=>x.id===id);
+    document.getElementById('editMemberId').value = id;
+    document.getElementById('memberName').value = m.name;
+    document.getElementById('memberPhone').value = m.phone || '';
     new bootstrap.Modal(document.getElementById('memberModal')).show();
   }
 
-  async function saveMember(){
-    const id=document.getElementById('editId').value;
-    const data={name:document.getElementById('mName').value.trim(), phone:document.getElementById('mPhone').value.trim()};
-    if(!data.name) return alert('Name required');
-    try{
-      id?await db.collection('members').doc(id).update(data):await db.collection('members').add(data);
+  function clearMemberForm() {
+    document.getElementById('editMemberId').value = '';
+    document.getElementById('memberName').value = '';
+    document.getElementById('memberPhone').value = '';
+  }
+
+  async function saveMember() {
+    const id = document.getElementById('editMemberId').value;
+    const data = { name: document.getElementById('memberName').value.trim(), phone: document.getElementById('memberPhone').value.trim(), joinDate: new Date().toISOString().split('T')[0] };
+    if (!data.name) return alert('Name required');
+    try {
+      id ? await db.collection('members').doc(id).update(data) : await db.collection('members').add(data);
       bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
       loadData();
-    }catch(e){alert('Save error: '+e.message);}
+    } catch (e) { alert(e.message); }
   }
 
-  async function deleteMember(id){
-    if(confirm('Delete this member?')){ try{await db.collection('members').doc(id).delete(); loadData();}catch(e){alert(e.message);} }
-  }
-
-  function showSavingForm(){ document.getElementById('savingForm').classList.remove('hidden'); }
-  function hideSavingForm(){ document.getElementById('savingForm').classList.add('hidden'); }
-  async function saveSaving(){
-    const memberId=document.getElementById('sMember').value;
-    const month=document.getElementById('sMonth').value;
-    const amount=parseFloat(document.getElementById('sAmount').value);
-    if(!memberId||!month||isNaN(amount)||amount<=0) return alert('Fill all fields correctly');
-    try{
-      await db.collection('savings').add({memberId,month,amount});
-      hideSavingForm(); document.getElementById('sAmount').value=''; loadData();
-    }catch(e){alert(e.message);}
-  }
-
-  function showLoanForm(){ document.getElementById('loanForm').classList.remove('hidden'); }
-  function hideLoanForm(){ document.getElementById('loanForm').classList.add('hidden'); }
-  async function saveLoan(){
-    const memberId=document.getElementById('lMember').value;
-    const principal=parseFloat(document.getElementById('lPrincipal').value);
-    const rate=parseFloat(document.getElementById('lRate').value);
-    const start=document.getElementById('lStart').value;
-    if(!memberId||isNaN(principal)||principal<=0||isNaN(rate)||rate<=0||!start) return alert('Fill all fields correctly');
-    try{
-      await db.collection('loans').add({memberId,principal,rate,startDate:start,status:'active'});
-      hideLoanForm(); loadData();
-    }catch(e){alert(e.message);}
-  }
-
-  async function payInterest(){
-    const now=new Date();
-    const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const due=[];
-    let total=0;
-    loans.filter(l=>l.status!=='closed').forEach(l=>{
-      const dueMonth=getDueMonth(l.startDate);
-      const paid=payments.some(p=>p.loanId===l.id && p.month===dueMonth);
-      if(dueMonth===cur && !paid){
-        const int=l.principal*(l.rate/100)/12;
-        total+=int;
-        due.push({loanId:l.id,amount:int,month:cur});
-      }
-    });
-    if(total===0) return alert('No interest due this month');
-    if(confirm(`Pay Rs. ${total.toFixed(2)} interest?`)){
-      try{
-        for(const d of due) await db.collection('payments').add(d);
-        alert('Interest paid successfully!');
-        loadData();
-      }catch(e){alert(e.message);}
+  async function deleteMember(id) {
+    if (confirm('Delete member?')) {
+      try { await db.collection('members').doc(id).delete(); loadData(); }
+      catch (e) { alert(e.message); }
     }
   }
 
-  function fillSelects(){
-    const s=document.getElementById('sMember'), l=document.getElementById('lMember');
-    s.innerHTML='<option value="">Select Member</option>';
-    l.innerHTML='<option value="">Select Member</option>';
-    members.forEach(m=>{ const o=`<option value="${m.id}">${m.name}</option>`; s.innerHTML+=o; l.innerHTML+=o; });
-    const now=new Date();
-    document.getElementById('sMonth').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  function searchMembers(q) {
+    const rows = document.querySelectorAll('#membersTable tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  // ---------- Savings ----------
+  function showSavingForm() { document.getElementById('savingForm').classList.remove('hidden'); fillMemberSelect('savingMember'); }
+  function hideSavingForm() { document.getElementById('savingForm').classList.add('hidden'); }
+  async function saveSaving() {
+    const memberId = document.getElementById('savingMember').value;
+    const month = document.getElementById('savingMonth').value;
+    const amount = parseFloat(document.getElementById('savingAmount').value);
+    if (!memberId || !month || isNaN(amount)) return alert('Fill all');
+    try {
+      await db.collection('savings').add({ memberId, month, amount, paymentDate: new Date().toISOString().split('T')[0] });
+      hideSavingForm(); loadData();
+    } catch (e) { alert(e.message); }
+  }
+
+  function renderSavings() {
+    const tbody = document.getElementById('savingsTable');
+    tbody.innerHTML = '';
+    savings.forEach(s => {
+      const m = members.find(x=>x.id===s.memberId);
+      tbody.innerHTML += `<tr>
+        <td>${m?.name || 'Unknown'}</td>
+        <td>Rs.${s.amount}</td>
+        <td>${s.month}</td>
+        <td>${s.paymentDate || '-'}</td>
+        <td><span class="badge bg-success">Paid</span></td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</td>
+      </tr>`;
+    });
+    document.getElementById('savingCount').textContent = savings.length;
+  }
+
+  function searchSavings(q) {
+    const rows = document.querySelectorAll('#savingsTable tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  // ---------- Loans ----------
+  function showLoanForm() { document.getElementById('loanForm').classList.remove('hidden'); fillMemberSelect('loanMember'); }
+  function hideLoanForm() { document.getElementById('loanForm').classList.add('hidden'); }
+  async function saveLoan() {
+    const memberId = document.getElementById('loanMember').value;
+    const principal = parseFloat(document.getElementById('loanPrincipal').value);
+    const rate = parseFloat(document.getElementById('loanRate').value);
+    const start = document.getElementById('loanDate').value;
+    const duration = parseInt(document.getElementById('loanDuration').value);
+    if (!memberId || isNaN(principal) || isNaN(rate) || !start || isNaN(duration)) return alert('Fill all');
+    try {
+      await db.collection('loans').add({ memberId, principal, balance: principal, rate, startDate: start, duration, status: 'active' });
+      hideLoanForm(); loadData();
+    } catch (e) { alert(e.message); }
+  }
+
+  function renderLoans() {
+    const tbody = document.getElementById('loansTable');
+    tbody.innerHTML = '';
+    loans.forEach(l => {
+      const m = members.find(x=>x.id===l.memberId);
+      const monthlyInt = l.principal * (l.rate/100) / 12;
+      tbody.innerHTML += `<tr>
+        <td>${m?.name || 'Unknown'}</td>
+        <td>Rs.${l.principal}</td>
+        <td>Rs.${l.balance}</td>
+        <td>${l.rate}%</td>
+        <td>Rs.${monthlyInt.toFixed(2)}</td>
+        <td>${l.startDate}</td>
+        <td>${l.duration} months</td>
+        <td><span class="badge bg-warning">Active</span></td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-trash"></i></button>` : ''}</td>
+      </tr>`;
+    });
+    document.getElementById('loanCount').textContent = loans.length;
+  }
+
+  function searchLoans(q) {
+    const rows = document.querySelectorAll('#loansTable tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  // ---------- Payments ----------
+  async function payInterest() {
+    const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    let total = 0;
+    const due = [];
+    loans.filter(l=>l.status!=='closed').forEach(l => {
+      const paid = payments.some(p=>p.loanId===l.id && p.month===cur);
+      if (!paid) {
+        const int = l.principal * (l.rate/100) / 12;
+        total += int;
+        due.push({loanId: l.id, amount: int, month: cur, paymentDate: new Date().toISOString().split('T')[0]});
+      }
+    });
+    if (total === 0) return alert('No interest due');
+    if (confirm(`Pay Rs.${total.toFixed(2)} interest?`)) {
+      try {
+        for (const d of due) await db.collection('payments').add(d);
+        alert('Payment recorded!');
+        loadData();
+      } catch (e) { alert(e.message); }
+    }
+  }
+
+  function renderPayments() {
+    const tbody = document.getElementById('paymentsTable');
+    tbody.innerHTML = '';
+    payments.forEach(p => {
+      const l = loans.find(x=>x.id===p.loanId);
+      const m = members.find(x=>x.id===l?.memberId);
+      tbody.innerHTML += `<tr>
+        <td>${m?.name || 'Unknown'}</td>
+        <td>${p.month}</td>
+        <td>Rs.${p.amount}</td>
+        <td>Rs.0</td>
+        <td>Rs.${p.amount}</td>
+        <td>${p.paymentDate}</td>
+        <td><span class="badge bg-success">Paid</span></td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</td>
+      </tr>`;
+    });
+    document.getElementById('paymentCount').textContent = payments.length;
+  }
+
+  function searchPayments(q) {
+    const rows = document.querySelectorAll('#paymentsTable tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  function fillMemberSelect(id) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">Select Member</option>';
+    members.forEach(m => sel.innerHTML += `<option value="${m.id}">${m.name}</option>`);
   }
 
   // Bootstrap JS
-  const bs=document.createElement('script');
-  bs.src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
+  const bs = document.createElement('script');
+  bs.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
   document.body.appendChild(bs);
 </script>
 
