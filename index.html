@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thaleshwor Yuwa Samuh</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <style>
+    body { padding-top: 20px; }
+    .card { margin-bottom: 15px; }
+    .hidden { display: none; }
+    .defaulter { color: red; }
+  </style>
+</head>
+<body class="container">
+
+<h1 class="text-center mb-4">Thaleshwor Yuwa Samuh</h1>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="loginSection" class="card p-4 mx-auto" style="max-width:400px;">
+  <h3 class="text-center">Login</h3>
+  <div class="mb-3">
+    <label class="form-label">Username</label>
+    <input id="username" class="form-control" placeholder="admin or user">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Password</label>
+    <input id="password" type="password" class="form-control" placeholder="password">
+  </div>
+  <button onclick="login()" class="btn btn-primary w-100">Login</button>
+  <p id="loginMsg" class="text-danger mt-2"></p>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="appSection" class="hidden">
+
+  <!-- Dashboard -->
+  <div id="dashboard" class="row">
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>Members</h5><p id="totalMembers">0</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>Total Saving</h5><p id="totalSaving">0</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>Total Loan</h5><p id="totalLoan">0</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>Growth %</h5><p id="growthRate">0</p></div></div></div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6"><canvas id="savingChart"></canvas></div>
+    <div class="col-md-6"><canvas id="loanPie"></canvas></div>
+  </div>
+
+  <h4 class="mt-4">Defaulters (Current Month)</h4>
+  <div id="defaulters"></div>
+
+  <!-- Admin Controls -->
+  <div id="adminControls" class="hidden mt-4">
+    <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#memberModal">Add Member</button>
+    <button class="btn btn-info me-2" onclick="showSavingForm()">Add Saving</button>
+    <button class="btn btn-warning me-2" onclick="showLoanForm()">Add Loan</button>
+    <button class="btn btn-danger me-2" onclick="payInterest()">Pay Interest</button>
+  </div>
+
+  <!-- Members Table -->
+  <h4 class="mt-4">Members</h4>
+  <table class="table table-striped">
+    <thead><tr><th>Name</th><th>Phone</th><th>Saving</th><th>Loan</th><th>Action</th></tr></thead>
+    <tbody id="memberTable"></tbody>
+  </table>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+<!-- Member Modal -->
+<div class="modal fade" id="memberModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5>Add / Edit Member</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="mb-3"><label>Name</label><input id="mName" class="form-control"></div>
+        <div class="mb-3"><label>Phone</label><input id="mPhone" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="saveMember()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Saving Form -->
+<div id="savingForm" class="hidden card p-3 mt-3">
+  <h5>Add Monthly Saving</h5>
+  <select id="sMember" class="form-select mb-2"></select>
+  <input type="month" id="sMonth" class="form-control mb-2">
+  <input type="number" id="sAmount" class="form-control mb-2" placeholder="Amount">
+  <button class="btn btn-success" onclick="saveSaving()">Save</button>
+  <button class="btn btn-secondary ms-2" onclick="hideSavingForm()">Cancel</button>
+</div>
+
+<!-- Loan Form -->
+<div id="loanForm" class="hidden card p-3 mt-3">
+  <h5>Add Loan</h5>
+  <select id="lMember" class="form-select mb-2"></select>
+  <input type="number" id="lPrincipal" class="form-control mb-2" placeholder="Principal">
+  <input type="number" step="0.01" id="lRate" class="form-control mb-2" placeholder="Annual Rate %">
+  <input type="date" id="lStart" class="form-control mb-2">
+  <button class="btn btn-success" onclick="saveLoan()">Save</button>
+  <button class="btn btn-secondary ms-2" onclick="hideLoanForm()">Cancel</button>
+</div>
+
+<script>
+  // ---------- 1. Firebase Config (CHANGE THIS) ----------
+  const firebaseConfig = {
+   // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBSTXmDJTX5DyO85KR62Rcx4zzlLPP7_u0",
+  authDomain: "thaleshwor-yuwa-samuh.firebaseapp.com",
+  projectId: "thaleshwor-yuwa-samuh",
+  storageBucket: "thaleshwor-yuwa-samuh.firebasestorage.app",
+  messagingSenderId: "372716860859",
+  appId: "1:372716860859:web:40de331870a5e4de5b409e",
+  measurementId: "G-SPEN77HFE2"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+  };
+  // ----------------------------------------------------
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let isAdmin = false;
+  let members = [], savings = [], loans = [], payments = [];
+
+  // ---------- Login ----------
+  function login() {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value;
+    if (u === 'admin' && p === 'samuh2082') { isAdmin = true; startApp(); }
+    else if (u === 'user' && p === 'password') { isAdmin = false; startApp(); }
+    else { document.getElementById('loginMsg').textContent = 'Wrong credentials'; }
+  }
+
+  function startApp() {
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('appSection').classList.remove('hidden');
+    document.getElementById('adminControls').classList.toggle('hidden', !isAdmin);
+    loadData();
+  }
+
+  // ---------- Load All Data ----------
+  async function loadData() {
+    members = await db.collection('members').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
+    savings = await db.collection('savings').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
+    loans = await db.collection('loans').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
+    payments = await db.collection('payments').get().then(s => s.docs.map(d => ({id: d.id, ...d.data()})));
+    renderAll();
+  }
+
+  // ---------- Render ----------
+  function renderAll() {
+    renderMembers();
+    renderDashboard();
+    renderCharts();
+    renderDefaulters();
+    fillSelects();
+  }
+
+  // Members Table
+  function renderMembers() {
+    const tbody = document.getElementById('memberTable');
+    tbody.innerHTML = '';
+    members.forEach(m => {
+      const sav = savings.filter(s => s.memberId === m.id).reduce((a,b)=>a+b.amount,0);
+      const ln = loans.filter(l => l.memberId === m.id && l.status !== 'closed').reduce((a,b)=>a+b.principal,0);
+      const row = `<tr>
+        <td>${m.name}</td>
+        <td>${m.phone}</td>
+        <td>${sav}</td>
+        <td>${ln}</td>
+        <td>
+          ${isAdmin ? `<button class="btn btn-sm btn-primary" onclick="editMember('${m.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger ms-1" onclick="deleteMember('${m.id}')">Del</button>` : ''}
+        </td>
+      </tr>`;
+      tbody.innerHTML += row;
+    });
+  }
+
+  // Dashboard Cards
+  function renderDashboard() {
+    const totalM = members.length;
+    const totalS = savings.reduce((a,b)=>a+b.amount,0);
+    const totalL = loans.filter(l=>l.status!=='closed').reduce((a,b)=>a+b.principal,0);
+    const growth = calculateGrowth();
+    document.getElementById('totalMembers').textContent = totalM;
+    document.getElementById('totalSaving').textContent = totalS.toFixed(2);
+    document.getElementById('totalLoan').textContent = totalL.toFixed(2);
+    document.getElementById('growthRate').textContent = growth.toFixed(2)+'%';
+  }
+
+  function calculateGrowth() {
+    const now = new Date();
+    const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const prevMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
+    const curSav = savings.filter(s=>s.month===curMonth).reduce((a,b)=>a+b.amount,0);
+    const prevSav = savings.filter(s=>s.month===prevMonth).reduce((a,b)=>a+b.amount,0);
+    if (prevSav===0) return 0;
+    return ((curSav-prevSav)/prevSav)*100;
+  }
+
+  // Charts
+  let savingChart, loanPie;
+  function renderCharts() {
+    // Saving line chart (last 6 months)
+    const months = [];
+    const savData = [];
+    for (let i=5; i>=0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth()-i);
+      const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      months.push(m);
+      savData.push(savings.filter(s=>s.month===m).reduce((a,b)=>a+b.amount,0));
+    }
+    if (savingChart) savingChart.destroy();
+    savingChart = new Chart(document.getElementById('savingChart'), {
+      type: 'line',
+      data: { labels: months, datasets: [{ label: 'Savings', data: savData, borderColor: 'green', fill: false }] }
+    });
+
+    // Loan pie
+    const loanLabels = [], loanVals = [];
+    members.forEach(m => {
+      const amt = loans.filter(l=>l.memberId===m.id && l.status!=='closed').reduce((a,b)=>a+b.principal,0);
+      if (amt>0) { loanLabels.push(m.name); loanVals.push(amt); }
+    });
+    if (loanPie) loanPie.destroy();
+    loanPie = new Chart(document.getElementById('loanPie'), {
+      type: 'pie',
+      data: { labels: loanLabels, datasets: [{ data: loanVals, backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF'] }] }
+    });
+  }
+
+  // Defaulters
+  function renderDefaulters() {
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    let html = '<h5>Saving Defaulters</h5><ul>';
+    members.forEach(m => {
+      const paid = savings.some(s => s.memberId===m.id && s.month===cur);
+      if (!paid) html += `<li class="defaulter">${m.name} (Saving)</li>`;
+    });
+    html += '</ul><h5>Interest Defaulters</h5><ul>';
+    loans.filter(l=>l.status!=='closed').forEach(l => {
+      const member = members.find(m=>m.id===l.memberId);
+      const dueMonth = getDueMonth(l.startDate);
+      const paid = payments.some(p => p.loanId===l.id && p.month===dueMonth);
+      if (dueMonth===cur && !paid) html += `<li class="defaulter">${member.name} (Loan Interest)</li>`;
+    });
+    html += '</ul>';
+    document.getElementById('defaulters').innerHTML = html;
+  }
+
+  function getDueMonth(start) {
+    const s = new Date(start);
+    const now = new Date();
+    if (now.getMonth() === s.getMonth() && now.getFullYear()===s.getFullYear()) return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    return `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  // ---------- Admin Actions ----------
+  // Member
+  function editMember(id) {
+    const m = members.find(x=>x.id===id);
+    document.getElementById('editId').value = id;
+    document.getElementById('mName').value = m.name;
+    document.getElementById('mPhone').value = m.phone;
+    new bootstrap.Modal(document.getElementById('memberModal')).show();
+  }
+
+  async function saveMember() {
+    const id = document.getElementById('editId').value;
+    const data = { name: document.getElementById('mName').value.trim(), phone: document.getElementById('mPhone').value.trim() };
+    if (id) await db.collection('members').doc(id).update(data);
+    else await db.collection('members').add(data);
+    bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
+    loadData();
+  }
+
+  async function deleteMember(id) {
+    if (confirm('Delete member?')) {
+      await db.collection('members').doc(id).delete();
+      loadData();
+    }
+  }
+
+  // Saving Form
+  function showSavingForm() { document.getElementById('savingForm').classList.remove('hidden'); }
+  function hideSavingForm() { document.getElementById('savingForm').classList.add('hidden'); }
+  async function saveSaving() {
+    const memberId = document.getElementById('sMember').value;
+    const month = document.getElementById('sMonth').value;
+    const amount = parseFloat(document.getElementById('sAmount').value);
+    if (!memberId || !month || isNaN(amount)) return alert('Fill all');
+    await db.collection('savings').add({ memberId, month, amount });
+    hideSavingForm();
+    loadData();
+  }
+
+  // Loan Form
+  function showLoanForm() { document.getElementById('loanForm').classList.remove('hidden'); }
+  function hideLoanForm() { document.getElementById('loanForm').classList.add('hidden'); }
+  async function saveLoan() {
+    const memberId = document.getElementById('lMember').value;
+    const principal = parseFloat(document.getElementById('lPrincipal').value);
+    const rate = parseFloat(document.getElementById('lRate').value);
+    const start = document.getElementById('lStart').value;
+    if (!memberId || isNaN(principal) || isNaN(rate) || !start) return alert('Fill all');
+    await db.collection('loans').add({ memberId, principal, rate, startDate: start, status: 'active' });
+    hideLoanForm();
+    loadData();
+  }
+
+  // Pay Interest (lump-sum for current month)
+  async function payInterest() {
+    const now = new Date();
+    const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    let totalDue = 0;
+    const dueList = [];
+    loans.filter(l=>l.status!=='closed').forEach(l => {
+      const dueMonth = getDueMonth(l.startDate);
+      const alreadyPaid = payments.some(p=>p.loanId===l.id && p.month===dueMonth);
+      if (dueMonth===cur && !alreadyPaid) {
+        const monthlyInt = l.principal * (l.rate/100) / 12;
+        totalDue += monthlyInt;
+        dueList.push({loanId: l.id, amount: monthlyInt, month: cur});
+      }
+    });
+    if (totalDue===0) return alert('No interest due this month');
+    if (confirm(`Pay Rs. ${totalDue.toFixed(2)} interest?`)) {
+      for (const d of dueList) {
+        await db.collection('payments').add(d);
+      }
+      loadData();
+    }
+  }
+
+  // Fill member selects
+  function fillSelects() {
+    const sSel = document.getElementById('sMember');
+    const lSel = document.getElementById('lMember');
+    sSel.innerHTML = lSel.innerHTML = '';
+    members.forEach(m => {
+      const opt = `<option value="${m.id}">${m.name}</option>`;
+      sSel.innerHTML += opt; lSel.innerHTML += opt;
+    });
+  }
+
+  // ---------- Bootstrap JS ----------
+  const bsScript = document.createElement('script');
+  bsScript.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
+  document.body.appendChild(bsScript);
+</script>
+
+</body>
+</html>
