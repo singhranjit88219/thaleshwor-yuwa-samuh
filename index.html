@@ -16,7 +16,7 @@
 
   <style>
     :root { --primary:#0d6efd; --success:#198754; --danger:#dc3545; --warning:#ffc107; --info:#0dcaf0; }
-    body { background:#f8f9fa; font-family:'Segoe UI',sans-serif; }
+    body { background:#f8f9fa; font-family:'Segoe UI',sans-serif; margin:0; }
     .sidebar { position:fixed; top:0; left:0; height:100vh; width:260px; background:#2c3e50; color:#fff; padding-top:20px; z-index:1000; }
     .sidebar .nav-link { color:#bdc3c7; padding:12px 20px; border-radius:8px; margin:4px 15px; transition:all .2s; }
     .sidebar .nav-link:hover, .sidebar .nav-link.active { background:#34495e; color:#fff; }
@@ -30,10 +30,10 @@
     .table th { font-weight:600; color:#495057; }
     .badge { font-size:0.8rem; }
     .hidden { display:none !important; }
-    #errorMsg { background:#ffebee; color:#c62828; padding:12px; border-radius:8px; margin:1rem 0; }
     .search-input { max-width:300px; }
     .chart-container { position:relative; height:300px; }
     .user-info { position:fixed; bottom:20px; left:20px; background:#2c3e50; color:#fff; padding:10px 16px; border-radius:50px; font-size:0.9rem; }
+    #errorMsg { background:#ffebee; color:#c62828; padding:12px; border-radius:8px; margin:1rem 0; }
   </style>
 </head>
 <body>
@@ -63,7 +63,7 @@
 
   <!-- Login -->
   <div id="loginPage" class="card mx-auto p-4" style="max-width:420px; margin-top:10vh;">
-    <h3 class="text-center mb-4"><i class="bi bi-box-arrow-in-right"></i> Login</h3>
+    <h3 class="text-center mb-4">Login</h3>
     <div class="mb-3">
       <label class="form-label">Username</label>
       <input id="username" class="form-control" placeholder="admin or user">
@@ -277,6 +277,7 @@
 
   let db, isAdmin = false;
   let members = [], savings = [], loans = [], payments = [];
+  let growthChart = null, loanPie = null; // Fixed: track charts
 
   try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
   catch (e) { showError('Firebase failed: ' + e.message); }
@@ -295,7 +296,7 @@
     document.getElementById(page + 'Page').classList.remove('hidden');
     document.getElementById('currentUser').textContent = isAdmin ? 'admin' : 'viewer';
     updateNavActive(page);
-    if (db) loadData();
+    loadData();
   }
 
   function logout() {
@@ -306,20 +307,25 @@
   }
 
   function showPage(page) {
+    // Destroy charts before hiding dashboard
+    if (growthChart) { growthChart.destroy(); growthChart = null; }
+    if (loanPie) { loanPie.destroy(); loanPie = null; }
+
     document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
     document.getElementById(page + 'Page').classList.remove('hidden');
     updateNavActive(page);
-    if (page === 'members') renderMembers();
+
+    if (page === 'dashboard') renderDashboard();
+    else if (page === 'members') renderMembers();
     else if (page === 'savings') renderSavings();
     else if (page === 'loans') renderLoans();
     else if (page === 'payments') renderPayments();
-    else renderDashboard();
   }
 
   function updateNavActive(page) {
     document.querySelectorAll('.sidebar .nav-link').forEach(link => {
       link.classList.remove('active');
-      if (link.onclick.toString().includes(page)) link.classList.add('active');
+      if (link.textContent.toLowerCase().includes(page)) link.classList.add('active');
     });
   }
 
@@ -335,7 +341,7 @@
       savings = s.docs.map(d=>({id:d.id,...d.data()}));
       loans   = l.docs.map(d=>({id:d.id,...d.data()}));
       payments= p.docs.map(d=>({id:d.id,...d.data()}));
-      renderDashboard();
+      if (document.getElementById('dashboardPage').classList.contains('hidden') === false) renderDashboard();
     } catch (e) { showError('Load failed: '+e.message); }
   }
 
@@ -358,8 +364,8 @@
       savData.push(savings.filter(x=>x.month===m).reduce((a,b)=>a+b.amount,0));
       loanData.push(loans.filter(x=>x.startDate<=m && x.status!=='closed').reduce((a,b)=>a+b.principal,0));
     }
-    if(window.growthChart) window.growthChart.destroy();
-    window.growthChart = new Chart(document.getElementById('growthChart'),{
+    if (growthChart) growthChart.destroy();
+    growthChart = new Chart(document.getElementById('growthChart'),{
       type:'line', data:{labels:months, datasets:[
         {label:'Savings', data:savData, borderColor:'#198754', backgroundColor:'rgba(25,135,84,.1)', fill:true},
         {label:'Loans', data:loanData, borderColor:'#ffc107', backgroundColor:'rgba(255,193,7,.1)', fill:true}
@@ -372,8 +378,8 @@
       const amt = loans.filter(l=>l.memberId===m.id && l.status!=='closed').reduce((a,b)=>a+b.principal,0);
       if(amt>0){ pieLabels.push(m.name); pieData.push(amt); }
     });
-    if(window.loanPie) window.loanPie.destroy();
-    window.loanPie = new Chart(document.getElementById('loanPie'),{
+    if (loanPie) loanPie.destroy();
+    loanPie = new Chart(document.getElementById('loanPie'),{
       type:'doughnut', data:{labels:pieLabels, datasets:[{data:pieData, backgroundColor:['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1']}]},
       options:{responsive:true}
     });
@@ -398,20 +404,21 @@
   function showError(msg) {
     const el = document.getElementById('errorMsg');
     el.textContent = msg; el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 5000);
   }
 
   // ---------- Members ----------
   function renderMembers() {
     const tbody = document.getElementById('membersTable');
     tbody.innerHTML = '';
-    members.forEach(m => {
-      const id = 'M' + String(members.indexOf(m) + 1).padStart(3, '0');
+    members.forEach((m, i) => {
+      const id = 'M' + String(i + 1).padStart(3, '0');
       tbody.innerHTML += `<tr>
         <td>${id}</td>
         <td>${m.name}</td>
         <td>${m.phone || '-'}</td>
-        <td>${m.joinDate || 'Sep 10, 2025'}</td>
-        <td><span class="badge ${m.status==='active'?'bg-success':'bg-secondary'}">${m.status||'Active'}</span></td>
+        <td>${m.joinDate || new Date().toISOString().split('T')[0]}</td>
+        <td><span class="badge bg-success">Active</span></td>
         <td>
           ${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>` : ''}
@@ -437,18 +444,23 @@
 
   async function saveMember() {
     const id = document.getElementById('editMemberId').value;
-    const data = { name: document.getElementById('memberName').value.trim(), phone: document.getElementById('memberPhone').value.trim(), joinDate: new Date().toISOString().split('T')[0] };
+    const data = { 
+      name: document.getElementById('memberName').value.trim(), 
+      phone: document.getElementById('memberPhone').value.trim(),
+      joinDate: new Date().toISOString().split('T')[0]
+    };
     if (!data.name) return alert('Name required');
     try {
       id ? await db.collection('members').doc(id).update(data) : await db.collection('members').add(data);
       bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
       loadData();
+      showPage('members');
     } catch (e) { alert(e.message); }
   }
 
   async function deleteMember(id) {
     if (confirm('Delete member?')) {
-      try { await db.collection('members').doc(id).delete(); loadData(); }
+      try { await db.collection('members').doc(id).delete(); loadData(); showPage('members'); }
       catch (e) { alert(e.message); }
     }
   }
@@ -462,7 +474,11 @@
   }
 
   // ---------- Savings ----------
-  function showSavingForm() { document.getElementById('savingForm').classList.remove('hidden'); fillMemberSelect('savingMember'); }
+  function showSavingForm() { 
+    document.getElementById('savingForm').classList.remove('hidden'); 
+    fillMemberSelect('savingMember'); 
+    document.getElementById('savingMonth').value = new Date().toISOString().slice(0,7);
+  }
   function hideSavingForm() { document.getElementById('savingForm').classList.add('hidden'); }
   async function saveSaving() {
     const memberId = document.getElementById('savingMember').value;
@@ -471,7 +487,7 @@
     if (!memberId || !month || isNaN(amount)) return alert('Fill all');
     try {
       await db.collection('savings').add({ memberId, month, amount, paymentDate: new Date().toISOString().split('T')[0] });
-      hideSavingForm(); loadData();
+      hideSavingForm(); loadData(); showPage('savings');
     } catch (e) { alert(e.message); }
   }
 
@@ -501,7 +517,11 @@
   }
 
   // ---------- Loans ----------
-  function showLoanForm() { document.getElementById('loanForm').classList.remove('hidden'); fillMemberSelect('loanMember'); }
+  function showLoanForm() { 
+    document.getElementById('loanForm').classList.remove('hidden'); 
+    fillMemberSelect('loanMember'); 
+    document.getElementById('loanDate').value = new Date().toISOString().split('T')[0];
+  }
   function hideLoanForm() { document.getElementById('loanForm').classList.add('hidden'); }
   async function saveLoan() {
     const memberId = document.getElementById('loanMember').value;
@@ -512,7 +532,7 @@
     if (!memberId || isNaN(principal) || isNaN(rate) || !start || isNaN(duration)) return alert('Fill all');
     try {
       await db.collection('loans').add({ memberId, principal, balance: principal, rate, startDate: start, duration, status: 'active' });
-      hideLoanForm(); loadData();
+      hideLoanForm(); loadData(); showPage('loans');
     } catch (e) { alert(e.message); }
   }
 
@@ -564,7 +584,7 @@
       try {
         for (const d of due) await db.collection('payments').add(d);
         alert('Payment recorded!');
-        loadData();
+        loadData(); showPage('payments');
       } catch (e) { alert(e.message); }
     }
   }
