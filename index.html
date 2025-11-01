@@ -8,7 +8,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase v9 -->
+  <!-- Firebase v9 - MODULAR (NO UI) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
     import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
@@ -59,7 +59,7 @@
 
 <div class="main-content p-4">
 
-  <!-- LOGIN PAGE (FORCE SHOW FIRST) -->
+  <!-- LOGIN PAGE -->
   <div id="loginPage" class="container text-center mt-5">
     <div class="card mx-auto shadow" style="max-width: 400px;">
       <div class="card-body p-5">
@@ -68,7 +68,7 @@
         <button id="googleBtn" class="btn btn-primary btn-lg w-100" disabled>
           <span class="spinner-border spinner-border-sm me-2"></span> Loading...
         </button>
-        <div id="loginError" class="mt-3 text-danger"></div>
+        <div id="loginError" class="mt-3 text-danger small"></div>
       </div>
     </div>
   </div>
@@ -76,7 +76,7 @@
   <!-- DASHBOARD -->
   <div id="dashboardPage" class="hidden container">
     <h2>Dashboard</h2>
-    <div class="row g-3">
+    <div class="row g-3 mb-4">
       <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashMembers">0</h5><p>Members</p></div></div></div>
       <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashSavings">Rs.0</h5><p>Savings</p></div></div></div>
       <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashLoans">Rs.0</h5><p>Loans</p></div></div></div>
@@ -88,11 +88,11 @@
   <div id="membersPage" class="hidden container">
     <div class="d-flex justify-content-between mb-3">
       <h2>Members <span class="badge bg-primary" id="memberCount">0</span></h2>
-      <button id="addMemberBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">Add Member</button>
+      <button id="addMemberBtn" class="btn btn-success hidden" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">Add Member</button>
     </div>
     <table class="table table-striped">
       <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="membersTable"><tr><td colspan="7">Loading...</td></tr></tbody>
+      <tbody id="membersTable"><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
     </table>
   </div>
 
@@ -118,7 +118,6 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
-    // Wait for Firebase
     while (!window.firebase) await new Promise(r => setTimeout(r, 100));
     const { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, auth, provider, signInWithPopup, signOut, onAuthStateChanged } = window.firebase;
 
@@ -127,11 +126,10 @@
 
     // ENABLE GOOGLE BUTTON
     const btn = document.getElementById('googleBtn');
-    btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" class="me-2"> Sign in with Google';
+    btn.innerHTML = '<i class="bi bi-google me-2"></i> Sign in with Google';
     btn.disabled = false;
-    btn.onclick = () => signInWithPopup(auth, provider).catch(e => {
-      document.getElementById('loginError').textContent = 'Login failed: ' + e.message;
-    });
+    btn.onclick = () => signInWithPopup(auth, provider)
+      .catch(e => document.getElementById('loginError').textContent = 'Login failed: ' + e.message);
 
     // AUTH LISTENER
     onAuthStateChanged(auth, async (user) => {
@@ -144,10 +142,9 @@
         document.getElementById('addMemberBtn').classList.toggle('hidden', !isAdmin);
         loadMembers();
       } else {
-        // FORCE SHOW LOGIN PAGE
         document.getElementById('loginPage').classList.remove('hidden');
         document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
-        document.getElementById('currentUser').textContent = 'Guest (Not Logged In)';
+        document.getElementById('currentUser').textContent = 'Guest';
       }
     });
 
@@ -160,9 +157,13 @@
     };
 
     async function loadMembers() {
-      const snap = await getDocs(collection(db, 'members'));
-      members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderMembers();
+      try {
+        const snap = await getDocs(collection(db, 'members'));
+        members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderMembers();
+      } catch (e) {
+        alert('Load failed: ' + e.message);
+      }
     }
 
     function renderMembers() {
