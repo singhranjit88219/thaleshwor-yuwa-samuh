@@ -4,16 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Thaleshwor Yuwa Samuh</title>
+
+  <!-- Bootstrap + Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet"/>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase v9 -->
+  <!-- Firebase v9 modular SDK (CDN) -->
   <script type="module">
+    // Import only what we need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
+    // -------------------------------------------------
+    // Firebase config (your project)
+    // -------------------------------------------------
     const firebaseConfig = {
       apiKey: "AIzaSyBSTXmDJTX5DyO85KR62Rcx4zzlLPP7_u0",
       authDomain: "thaleshwor-yuwa-samuh.firebaseapp.com",
@@ -26,21 +33,25 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
 
-    window.app = { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, setDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+    // Expose to global scope so the rest of the script can use it
+    window.firebaseDB = { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc };
   </script>
 
   <style>
     .hidden { display: none !important; }
     .sidebar { width: 220px; }
     .main-content { margin-left: 220px; }
-    @media (max-width: 768px) { .sidebar, .main-content { width: 100%; margin: 0; } }
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; margin-bottom: 1rem; }
+      .main-content { margin-left: 0; }
+    }
+    .chart-container { position: relative; height: 300px; }
   </style>
 </head>
 <body class="bg-light">
 
-<!-- SIDEBAR -->
+<!-- ====================== SIDEBAR ====================== -->
 <div class="sidebar bg-white shadow-sm position-fixed h-100 p-3">
   <h5 class="text-center mb-4">Thaleshwor Yuwa Samuh</h5>
   <ul class="nav nav-pills flex-column">
@@ -49,39 +60,33 @@
     <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('savings')">Savings</a></li>
     <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('loans')">Loans</a></li>
     <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('payments')">Payments</a></li>
-    <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('comments')">Comments</a></li>
     <li class="nav-item mt-4"><a class="nav-link text-danger" href="#" onclick="logout()">Logout</a></li>
   </ul>
   <div class="mt-auto text-center text-muted small">
-    Logged in as: <span id="currentUser">Guest</span>
+    Logged in as: <span id="currentUser"></span>
   </div>
 </div>
 
-<!-- MAIN CONTENT -->
+<!-- ====================== MAIN CONTENT ====================== -->
 <div class="main-content p-4">
 
   <!-- LOGIN PAGE -->
   <div id="loginPage" class="container">
-    <div class="row justify-content-center mt-5">
+    <div class="row justify-content-center">
       <div class="col-md-4">
-        <div class="card shadow">
-          <div class="card-body p-4">
-            <h3 class="text-center mb-4">Login</h3>
+        <div class="card mt-5">
+          <div class="card-body">
+            <h4 class="card-title text-center mb-4">Login</h4>
             <div class="mb-3">
-              <label>Email</label>
-              <input type="email" id="loginEmail" class="form-control" value="admin@samuh.com">
+              <input type="text" id="username" class="form-control" placeholder="Username" />
             </div>
             <div class="mb-3">
-              <label>Password</label>
-              <input type="password" id="loginPassword" class="form-control" value="admin123">
+              <input type="password" id="password" class="form-control" placeholder="Password" />
             </div>
+            <p id="loginMsg" class="text-danger text-center"></p>
             <button class="btn btn-primary w-100" onclick="login()">Login</button>
-            <div id="loginError" class="text-danger text-center mt-2"></div>
           </div>
         </div>
-        <p class="text-center mt-3 text-muted small">
-          Admin: <code>admin@samuh.com</code> / <code>admin123</code>
-        </p>
       </div>
     </div>
   </div>
@@ -91,264 +96,524 @@
     <h2>Dashboard</h2>
     <div class="row g-3 mb-4">
       <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashMembers">0</h5><p>Members</p></div></div></div>
-      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashSavings">Rs.0</h5><p>Savings</p></div></div></div>
-      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashLoans">Rs.0</h5><p>Loans</p></div></div></div>
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashSavings">Rs.0</h5><p>Total Savings</p></div></div></div>
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashLoans">Rs.0</h5><p>Active Loans</p></div></div></div>
       <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashGrowth">0%</h5><p>Growth</p></div></div></div>
     </div>
+
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header">Savings vs Loans (last 6 months)</div>
+          <div class="card-body chart-container"><canvas id="growthChart"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-header">Top Loan Holders</div>
+          <div class="card-body chart-container"><canvas id="loanPie"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mt-4">
+      <div class="col-md-6"><div class="alert alert-warning"><strong id="savingDefaulters"></strong></div></div>
+      <div class="col-md-6"><div class="alert alert-danger"><strong id="interestDefaulters"></strong></div></div>
+    </div>
   </div>
 
-  <!-- MEMBERS PAGE -->
+  <!-- MEMBERS -->
   <div id="membersPage" class="hidden container">
-    <div class="d-flex justify-content-between mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Members <span class="badge bg-primary" id="memberCount">0</span></h2>
-      <button id="addMemberBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">Add Member</button>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">Add Member</button>
     </div>
-    <table class="table table-striped">
-      <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="membersTable"></tbody>
-    </table>
+    <input type="text" class="form-control mb-3 w-25" placeholder="Search..." onkeyup="searchMembers(this.value)">
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="membersTable"></tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- SAVINGS PAGE -->
+  <!-- SAVINGS -->
   <div id="savingsPage" class="hidden container">
-    <h2>Savings</h2>
-    <div class="d-flex justify-content-between mb-3">
-      <button id="addSavingBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#savingModal" onclick="clearSavingForm()">Add Saving</button>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>Savings <span class="badge bg-primary" id="savingCount">0</span></h2>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#savingModal">Add Saving</button>
     </div>
+    <input type="text" class="form-control mb-3 w-25" placeholder="Search..." onkeyup="searchSavings(this.value)">
     <table class="table table-striped">
-      <thead><tr><th>Date</th><th>Member</th><th>Amount</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Member</th><th>Amount</th><th>Month</th><th>Paid On</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="savingsTable"></tbody>
     </table>
   </div>
 
-  <!-- LOANS PAGE -->
+  <!-- LOANS -->
   <div id="loansPage" class="hidden container">
-    <h2>Loans</h2>
-    <div class="d-flex justify-content-between mb-3">
-      <button id="addLoanBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#loanModal" onclick="clearLoanForm()">Add Loan</button>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>Loans <span class="badge bg-primary" id="loanCount">0</span></h2>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#loanModal">Add Loan</button>
     </div>
+    <input type="text" class="form-control mb-3 w-25" placeholder="Search..." onkeyup="searchLoans(this.value)">
     <table class="table table-striped">
-      <thead><tr><th>Date</th><th>Member</th><th>Amount</th><th>Interest</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Member</th><th>Principal</th><th>Balance</th><th>Rate</th><th>Monthly Int.</th><th>Start</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="loansTable"></tbody>
     </table>
   </div>
 
-  <!-- PAYMENTS PAGE -->
+  <!-- PAYMENTS -->
   <div id="paymentsPage" class="hidden container">
-    <h2>Payments</h2>
-    <div class="d-flex justify-content-between mb-3">
-      <button id="addPaymentBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#paymentModal" onclick="clearPaymentForm()">Add Payment</button>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>Payments <span class="badge bg-primary" id="paymentCount">0</span></h2>
+      <button class="btn btn-primary" onclick="payInterest()">Pay All Interest</button>
     </div>
+    <input type="text" class="form-control mb-3 w-25" placeholder="Search..." onkeyup="searchPayments(this.value)">
     <table class="table table-striped">
-      <thead><tr><th>Date</th><th>Member</th><th>Amount</th><th>Type</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Member</th><th>Month</th><th>Interest</th><th>Principal</th><th>Total</th><th>Paid On</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="paymentsTable"></tbody>
     </table>
   </div>
 
 </div>
 
-<!-- MODALS (same as before) -->
+<!-- ====================== MODALS ====================== -->
+<!-- (Member, Saving, Loan modals – same as before) -->
 <div class="modal fade" id="memberModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Add / Edit Member</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <input type="hidden" id="editMemberId">
-      <div class="mb-3"><label>Name *</label><input type="text" id="memberName" class="form-control"></div>
-      <div class="mb-3"><label>Phone</label><input type="text" id="memberPhone" class="form-control"></div>
-      <div class="mb-3"><label>Address</label><input type="text" id="memberAddress" class="form-control"></div>
-      <div class="mb-3"><label>Join Date *</label><input type="date" id="memberJoinDate" class="form-control"></div>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add / Edit Member</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="editMemberId">
+        <div class="mb-3"><label class="form-label">Name</label><input type="text" id="memberName" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Phone</label><input type="text" id="memberPhone" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Address</label><input type="text" id="memberAddress" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Join Date</label><input type="date" id="memberJoinDate" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveMember()">Save</button>
+      </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button class="btn btn-primary" onclick="saveMember()">Save</button>
-    </div>
-  </div></div>
+  </div>
 </div>
 
-<!-- Saving, Loan, Payment Modals (same as before) -->
 <div class="modal fade" id="savingModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Add Saving</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <input type="hidden" id="editSavingId">
-      <div class="mb-3"><label>Member</label><select id="savingMember" class="form-control"></select></div>
-      <div class="mb-3"><label>Amount *</label><input type="number" id="savingAmount" class="form-control"></div>
-      <div class="mb-3"><label>Date *</label><input type="date" id="savingDate" class="form-control"></div>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Saving</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Member</label><select id="savingMemberModal" class="form-select"></select></div>
+        <div class="mb-3"><label class="form-label">Month</label><input type="month" id="savingMonthModal" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Amount</label><input type="number" step="0.01" id="savingAmountModal" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveSavingModal()">Save</button>
+      </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSaving()">Save</button>
-    </div>
-  </div></div>
+  </div>
 </div>
 
 <div class="modal fade" id="loanModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Add Loan</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <input type="hidden" id="editLoanId">
-      <div class="mb-3"><label>Member</label><select id="loanMember" class="form-control"></select></div>
-      <div class="mb-3"><label>Amount *</label><input type="number" id="loanAmount" class="form-control"></div>
-      <div class="mb-3"><label>Interest %</label><input type="number" id="loanInterest" class="form-control" value="10"></div>
-      <div class="mb-3"><label>Date *</label><input type="date" id="loanDate" class="form-control"></div>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Loan</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Member</label><select id="loanMemberModal" class="form-select"></select></div>
+        <div class="mb-3"><label class="form-label">Principal</label><input type="number" step="0.01" id="loanPrincipalModal" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Rate (%/yr)</label><input type="number" step="0.01" id="loanRateModal" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Start Date</label><input type="date" id="loanDateModal" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Duration (months)</label><input type="number" id="loanDurationModal" class="form-control"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveLoanModal()">Save</button>
+      </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button class="btn btn-primary" onclick="saveLoan()">Save</button>
-    </div>
-  </div></div>
+  </div>
 </div>
 
-<div class="modal fade" id="paymentModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5>Add Payment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <input type="hidden" id="editPaymentId">
-      <div class="mb-3"><label>Member</label><select id="paymentMember" class="form-control"></select></div>
-      <div class="mb-3"><label>Amount *</label><input type="number" id="paymentAmount" class="form-control"></div>
-      <div class="mb-3"><label>Type</label><select id="paymentType" class="form-control">
-        <option>Loan Repayment</option>
-        <option>Saving Withdrawal</option>
-      </select></div>
-      <div class="mb-3"><label>Date *</label><input type="date" id="paymentDate" class="form-control"></div>
+<!-- Error Toast -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+  <div id="errorMsg" class="toast align-items-center text-white bg-danger border-0 hidden" role="alert">
+    <div class="d-flex">
+      <div class="toast-body"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-      <button class="btn btn-primary" onclick="savePayment()">Save</button>
-    </div>
-  </div></div>
+  </div>
 </div>
 
+<!-- ====================== MAIN SCRIPT (non-module) ====================== -->
 <script>
+  // Wait for the module to finish loading
   document.addEventListener('DOMContentLoaded', async () => {
-    while (!window.app) await new Promise(r => setTimeout(r, 100));
-    const { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, setDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } = window.app;
+    // firebaseDB is set by the module above
+    while (!window.firebaseDB) await new Promise(r => setTimeout(r, 50));
+    const { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } = window.firebaseDB;
 
-    let user = null;
     let isAdmin = false;
     let members = [], savings = [], loans = [], payments = [];
+    let growthChart = null, loanPie = null;
+    let loading = false;
 
-    // Create Admin (first time)
-    const createAdmin = async () => {
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, "admin@samuh.com", "admin123");
-        await setDoc(doc(db, 'users', cred.user.uid), { role: 'admin', name: 'Admin' });
-      } catch (e) {
-        if (e.code !== 'auth/email-already-in-use') console.error(e);
-      }
-    };
-    createAdmin();
+    // ---------- AUTH ----------
+    function simpleHash(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+      return h;
+    }
+    const ADMIN_HASH = simpleHash('samuh2082');
 
-    // AUTH LISTENER
-    onAuthStateChanged(auth, async (u) => {
-      user = u;
-      if (u) {
-        const snap = await getDocs(collection(db, 'users'));
-        const userDoc = snap.docs.find(d => d.id === u.uid);
-        isAdmin = userDoc?.data()?.role === 'admin';
-        document.getElementById('currentUser').textContent = (userDoc?.data()?.name || u.email) + (isAdmin ? ' (Admin)' : ' (Viewer)');
-        document.getElementById('loginPage').classList.add('hidden');
-        document.getElementById('dashboardPage').classList.remove('hidden');
-        document.getElementById('addMemberBtn').classList.toggle('hidden', !isAdmin);
-        document.getElementById('addSavingBtn').classList.toggle('hidden', !isAdmin);
-        document.getElementById('addLoanBtn').classList.toggle('hidden', !isAdmin);
-        document.getElementById('addPaymentBtn').classList.toggle('hidden', !isAdmin);
-        loadAll();
-      } else {
-        // FORCE LOGIN PAGE
-        document.getElementById('loginPage').classList.remove('hidden');
-        document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
-        document.getElementById('currentUser').textContent = 'Guest';
-      }
-    });
+    window.login = function () {
+      const u = document.getElementById('username').value.trim();
+      const p = document.getElementById('password').value;
+      const pHash = simpleHash(p);
 
-    // LOGOUT — FULL CLEAR + REDIRECT
-    window.logout = async () => {
-      await signOut(auth);
-      // Clear any cached state
-      localStorage.clear();
-      sessionStorage.clear();
-      // Force reload to login
-      location.reload(true);
+      if (u === 'admin' && pHash === ADMIN_HASH) { isAdmin = true; startApp('dashboard'); }
+      else if (u === 'user' && p === 'password') { isAdmin = false; startApp('dashboard'); }
+      else document.getElementById('loginMsg').textContent = 'Wrong credentials';
     };
 
-    window.login = async () => {
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value;
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-      } catch (e) {
-        document.getElementById('loginError').textContent = 'Invalid login';
-      }
-    };
-
-    window.showPage = (page) => {
-      if (!user) return;
+    function startApp(page) {
+      document.getElementById('loginPage').classList.add('hidden');
       document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
       document.getElementById(page + 'Page').classList.remove('hidden');
-      if (page === 'dashboard') updateDashboard();
+      document.getElementById('currentUser').textContent = isAdmin ? 'admin' : 'viewer';
+      updateNavActive(page);
+      loadData();
+    }
+
+    window.logout = function () {
+      document.getElementById('loginPage').classList.remove('hidden');
+      document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+      isAdmin = false;
     };
 
-    async function loadAll() {
-      members = (await getDocs(collection(db, 'members'))).docs.map(d => ({ id: d.id, ...d.data() }));
-      savings = (await getDocs(collection(db, 'savings'))).docs.map(d => ({ id: d.id, ...d.data() }));
-      loans = (await getDocs(collection(db, 'loans'))).docs.map(d => ({ id: d.id, ...d.data() }));
-      payments = (await getDocs(collection(db, 'payments'))).docs.map(d => ({ id: d.id, ...d.data() }));
-      renderAll();
-      updateDashboard();
+    // ---------- NAV ----------
+    window.showPage = function (page) {
+      if (growthChart) { growthChart.destroy(); growthChart = null; }
+      if (loanPie) { loanPie.destroy(); loanPie = null; }
+
+      document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById(page + 'Page').classList.remove('hidden');
+      updateNavActive(page);
+
+      if (page === 'dashboard') renderDashboard();
+      else if (page === 'members') renderMembers();
+      else if (page === 'savings') renderSavings();
+      else if (page === 'loans') renderLoans();
+      else if (page === 'payments') renderPayments();
+    };
+
+    function updateNavActive(page) {
+      document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('onclick')?.includes(page)) link.classList.add('active');
+      });
     }
 
-    function renderAll() {
-      renderMembers(); renderSavings(); renderLoans(); renderPayments(); populateMemberSelects();
+    // ---------- DATA ----------
+    async function loadData() {
+      if (loading) return;
+      loading = true;
+      try {
+        const [mSnap, sSnap, lSnap, pSnap] = await Promise.all([
+          getDocs(collection(db, 'members')),
+          getDocs(collection(db, 'savings')),
+          getDocs(collection(db, 'loans')),
+          getDocs(collection(db, 'payments'))
+        ]);
+        members = mSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        savings = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        loans = lSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        payments = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        if (!document.getElementById('dashboardPage').classList.contains('hidden')) renderDashboard();
+      } catch (e) {
+        showError('Load failed: ' + e.message);
+      } finally { loading = false; }
     }
 
+    // ---------- DASHBOARD ----------
+    function renderDashboard() {
+      const totalM = members.length;
+      const totalS = savings.reduce((a, b) => a + (b.amount || 0), 0);
+      const totalL = loans.filter(l => l.status !== 'closed').reduce((a, b) => a + (b.principal || 0), 0);
+      const growth = calculateGrowth();
+
+      document.getElementById('dashMembers').textContent = totalM;
+      document.getElementById('dashSavings').textContent = 'Rs.' + totalS.toFixed(0);
+      document.getElementById('dashLoans').textContent = 'Rs.' + totalL.toFixed(0);
+      document.getElementById('dashGrowth').textContent = growth.toFixed(0) + '%';
+
+      // ---- line chart ----
+      const months = [], savData = [], loanData = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(); d.setMonth(d.getMonth() - i);
+        const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        months.push(m.split('-')[1] + '/' + m.split('-')[0].slice(2));
+        savData.push(savings.filter(x => x.month === m).reduce((a,b)=>a+b.amount,0));
+        loanData.push(loans.filter(x=>x.startDate<=m && x.status!=='closed').reduce((a,b)=>a+b.principal,0));
+      }
+      if (growthChart) growthChart.destroy();
+      growthChart = new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: { labels: months, datasets: [
+          { label: 'Savings', data: savData, borderColor: '#198754', backgroundColor: 'rgba(25,135,84,.1)', fill: true },
+          { label: 'Loans', data: loanData, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.1)', fill: true }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // ---- pie chart ----
+      const pieLabels = [], pieData = [];
+      members.slice(0,5).forEach(m => {
+        const amt = loans.filter(l=>l.memberId===m.id && l.status!=='closed')
+                         .reduce((a,b)=>a+b.principal,0);
+        if (amt>0) { pieLabels.push(m.name); pieData.push(amt); }
+      });
+      if (loanPie) loanPie.destroy();
+      loanPie = new Chart(document.getElementById('loanPie'), {
+        type: 'doughnut',
+        data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545','#6f42c1'] }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // ---- defaulters ----
+      const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+      const savDef = members.filter(m=>!savings.some(s=>s.memberId===m.id && s.month===cur)).length;
+      const intDef = loans.filter(l=>l.status!=='closed' && !payments.some(p=>p.loanId===l.id && p.month===cur)).length;
+      document.getElementById('savingDefaulters').textContent = savDef + ' members who haven\'t paid this month';
+      document.getElementById('interestDefaulters').textContent = intDef + ' loans without interest payment this month';
+    }
+
+    function calculateGrowth() {
+      const now = new Date();
+      const cur = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      const prev = `${now.getFullYear()}-${String(now.getMonth()).padStart(2,'0')}`;
+      const curSav = savings.filter(x=>x.month===cur).reduce((a,b)=>a+b.amount,0);
+      const prevSav = savings.filter(x=>x.month===prev).reduce((a,b)=>a+b.amount,0);
+      return prevSav===0 ? 0 : ((curSav-prevSav)/prevSav)*100;
+    }
+
+    function showError(msg) {
+      const toastEl = document.getElementById('errorMsg');
+      toastEl.querySelector('.toast-body').textContent = msg;
+      toastEl.classList.remove('hidden');
+      new bootstrap.Toast(toastEl).show();
+    }
+
+    // ---------- MEMBERS ----------
     function renderMembers() {
       const tbody = document.getElementById('membersTable');
       tbody.innerHTML = '';
-      members.forEach((m, i) => {
+      members.forEach((m,i)=>{
+        const id = 'M'+String(i+1).padStart(3,'0');
         tbody.innerHTML += `<tr>
-          <td>M${String(i+1).padStart(3,'0')}</td>
-          <td>${m.name}</td>
-          <td>${m.phone||'-'}</td>
-          <td>${m.address||'-'}</td>
-          <td>${m.joinDate}</td>
+          <td>${id}</td><td>${m.name}</td><td>${m.phone||'-'}</td><td>${m.address||'-'}</td><td>${m.joinDate||'-'}</td>
           <td><span class="badge bg-success">Active</span></td>
-          <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')">Edit</button>
-            <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')">Delete</button>` : ''}</td>
+          <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
         </tr>`;
       });
       document.getElementById('memberCount').textContent = members.length;
     }
 
-    // [renderSavings, renderLoans, renderPayments, saveMember, etc. — SAME AS BEFORE]
-
-    // Keep all other functions (saveMember, editMember, etc.) exactly as in previous version
-    // (Omitted here for brevity — copy from previous working code)
-
-    // Example: saveMember
-    window.saveMember = async () => {
-      if (!isAdmin) return alert('Only admin');
-      const id = document.getElementById('editMemberId').value;
-      const data = {
-        name: document.getElementById('memberName').value.trim(),
-        phone: document.getElementById('memberPhone').value.trim(),
-        address: document.getElementById('memberAddress').value.trim(),
-        joinDate: document.getElementById('memberJoinDate').value
-      };
-      if (!data.name || !data.joinDate) return alert('Required');
-      try {
-        if (id) await updateDoc(doc(db, 'members', id), data);
-        else await addDoc(collection(db, 'members'), data);
-        loadAll();
-        bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
-      } catch (e) { alert(e.message); }
+    window.editMember = function(id){
+      const m = members.find(x=>x.id===id);
+      document.getElementById('editMemberId').value = id;
+      document.getElementById('memberName').value = m.name;
+      document.getElementById('memberPhone').value = m.phone||'';
+      document.getElementById('memberAddress').value = m.address||'';
+      document.getElementById('memberJoinDate').value = m.joinDate||'';
+      new bootstrap.Modal(document.getElementById('memberModal')).show();
     };
 
-    // Add all other functions: editMember, deleteMember, saveSaving, etc.
-    // (Use the same from your working version)
+    window.clearMemberForm = function(){
+      document.getElementById('editMemberId').value = '';
+      document.getElementById('memberName').value = '';
+      document.getElementById('memberPhone').value = '';
+      document.getElementById('memberAddress').value = '';
+      document.getElementById('memberJoinDate').value = new Date().toISOString().split('T')[0];
+    };
 
+    window.saveMember = async function(){
+      const id = document.getElementById('editMemberId').value;
+      const name = document.getElementById('memberName').value.trim();
+      const phone = document.getElementById('memberPhone').value.trim();
+      const address = document.getElementById('memberAddress').value.trim();
+      const joinDate = document.getElementById('memberJoinDate').value;
+      if (!name||!joinDate) return alert('Name and Join Date required');
+
+      const data = { name, phone, address, joinDate };
+      try{
+        if(id) await updateDoc(doc(db,'members',id), data);
+        else await addDoc(collection(db,'members'), data);
+        bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
+        loadData(); showPage('members');
+      }catch(e){alert(e.message);}
+    };
+
+    window.deleteMember = async function(id){
+      if(confirm('Delete member?')){
+        await deleteDoc(doc(db,'members',id));
+        loadData(); showPage('members');
+      }
+    };
+
+    window.searchMembers = function(q){
+      const rows = document.querySelectorAll('#membersTable tr');
+      rows.forEach(r=>r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none');
+    };
+
+    // ---------- SAVINGS ----------
+    document.getElementById('savingModal').addEventListener('show.bs.modal',()=>{
+      fillMemberSelect('savingMemberModal');
+      document.getElementById('savingMonthModal').value = new Date().toISOString().slice(0,7);
+      document.getElementById('savingAmountModal').value = '';
+    });
+
+    window.saveSavingModal = async function(){
+      const memberId = document.getElementById('savingMemberModal').value;
+      const month = document.getElementById('savingMonthModal').value;
+      const amount = parseFloat(document.getElementById('savingAmountModal').value);
+      if(!memberId||!month||isNaN(amount)) return alert('Fill all fields');
+      await addDoc(collection(db,'savings'),{memberId,month,amount,paymentDate:new Date().toISOString().split('T')[0]});
+      bootstrap.Modal.getInstance(document.getElementById('savingModal')).hide();
+      loadData(); showPage('savings');
+    };
+
+    function renderSavings(){
+      const tbody = document.getElementById('savingsTable'); tbody.innerHTML='';
+      savings.forEach(s=>{
+        const m = members.find(x=>x.id===s.memberId);
+        tbody.innerHTML += `<tr>
+          <td>${m?.name||'Unknown'}</td><td>Rs.${s.amount}</td><td>${s.month}</td><td>${s.paymentDate||'-'}</td>
+          <td><span class="badge bg-success">Paid</span></td>
+          <td>${isAdmin?`<button class="btn btn-sm btn-outline-danger" onclick="deleteSaving('${s.id}')"><i class="bi bi-trash"></i></button>`:''}</td>
+        </tr>`;
+      });
+      document.getElementById('savingCount').textContent = savings.length;
+    }
+
+    window.deleteSaving = async function(id){
+      if(confirm('Delete saving record?')){ await deleteDoc(doc(db,'savings',id)); loadData(); showPage('savings'); }
+    };
+
+    window.searchSavings = function(q){
+      const rows = document.querySelectorAll('#savingsTable tr');
+      rows.forEach(r=>r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none');
+    };
+
+    // ---------- LOANS ----------
+    document.getElementById('loanModal').addEventListener('show.bs.modal',()=>{
+      fillMemberSelect('loanMemberModal');
+      document.getElementById('loanDateModal').value = new Date().toISOString().split('T')[0];
+      document.getElementById('loanPrincipalModal').value = '';
+      document.getElementById('loanRateModal').value = '';
+      document.getElementById('loanDurationModal').value = '';
+    });
+
+    window.saveLoanModal = async function(){
+      const memberId = document.getElementById('loanMemberModal').value;
+      const principal = parseFloat(document.getElementById('loanPrincipalModal').value);
+      const rate = parseFloat(document.getElementById('loanRateModal').value);
+      const start = document.getElementById('loanDateModal').value;
+      const duration = parseInt(document.getElementById('loanDurationModal').value);
+      if(!memberId||isNaN(principal)||isNaN(rate)||!start||isNaN(duration)) return alert('Fill all fields');
+      await addDoc(collection(db,'loans'),{memberId,principal,balance:principal,rate,startDate:start,duration,status:'active'});
+      bootstrap.Modal.getInstance(document.getElementById('loanModal')).hide();
+      loadData(); showPage('loans');
+    };
+
+    function renderLoans(){
+      const tbody = document.getElementById('loansTable'); tbody.innerHTML='';
+      loans.forEach(l=>{
+        const m = members.find(x=>x.id===l.memberId);
+        const monthlyInt = (l.principal*(l.rate/100)/12).toFixed(2);
+        tbody.innerHTML += `<tr>
+          <td>${m?.name||'Unknown'}</td><td>Rs.${l.principal}</td><td>Rs.${l.balance}</td><td>${l.rate}%</td>
+          <td>Rs.${monthlyInt}</td><td>${l.startDate}</td><td>${l.duration} months</td>
+          <td><span class="badge bg-warning">Active</span></td>
+          <td>${isAdmin?`<button class="btn btn-sm btn-outline-primary" onclick="editLoan('${l.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteLoan('${l.id}')"><i class="bi bi-trash"></i></button>`:''}</td>
+        </tr>`;
+      });
+      document.getElementById('loanCount').textContent = loans.length;
+    }
+
+    window.deleteLoan = async function(id){
+      if(confirm('Delete loan?')){ await deleteDoc(doc(db,'loans',id)); loadData(); showPage('loans'); }
+    };
+
+    window.searchLoans = function(q){
+      const rows = document.querySelectorAll('#loansTable tr');
+      rows.forEach(r=>r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none');
+    };
+
+    // ---------- PAYMENTS ----------
+    window.payInterest = async function(){
+      const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+      const due = [];
+      let total = 0;
+      loans.filter(l=>l.status!=='closed').forEach(l=>{
+        if(!payments.some(p=>p.loanId===l.id && p.month===cur)){
+          const int = l.principal*(l.rate/100)/12;
+          total+=int;
+          due.push({loanId:l.id,amount:int,month:cur,paymentDate:new Date().toISOString().split('T')[0]});
+        }
+      });
+      if(total===0) return alert('No interest due');
+      if(confirm(`Pay Rs.${total.toFixed(2)} interest?`)){
+        for(const d of due) await addDoc(collection(db,'payments'),d);
+        alert('Payment recorded!'); loadData(); showPage('payments');
+      }
+    };
+
+    function renderPayments(){
+      const tbody = document.getElementById('paymentsTable'); tbody.innerHTML='';
+      payments.forEach(p=>{
+        const l = loans.find(x=>x.id===p.loanId);
+        const m = members.find(x=>x.id===l?.memberId);
+        tbody.innerHTML += `<tr>
+          <td>${m?.name||'Unknown'}</td><td>${p.month}</td><td>Rs.${p.amount.toFixed(2)}</td><td>Rs.0</td>
+          <td>Rs.${p.amount.toFixed(2)}</td><td>${p.paymentDate}</td>
+          <td><span class="badge bg-success">Paid</span></td>
+          <td>${isAdmin?`<button class="btn btn-sm btn-outline-danger" onclick="deletePayment('${p.id}')"><i class="bi bi-trash"></i></button>`:''}</td>
+        </tr>`;
+      });
+      document.getElementById('paymentCount').textContent = payments.length;
+    }
+
+    window.deletePayment = async function(id){
+      if(confirm('Delete payment?')){ await deleteDoc(doc(db,'payments',id)); loadData(); showPage('payments'); }
+    };
+
+    window.searchPayments = function(q){
+      const rows = document.querySelectorAll('#paymentsTable tr');
+      rows.forEach(r=>r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none');
+    };
+
+    function fillMemberSelect(id){
+      const sel = document.getElementById(id);
+      sel.innerHTML = '<option value="">Select Member</option>';
+      members.forEach(m=>sel.innerHTML+=`<option value="${m.id}">${m.name}</option>`);
+    }
+
+    // expose functions that are called from inline HTML
+    window.renderMembers = renderMembers;
+    window.renderSavings = renderSavings;
+    window.renderLoans = renderLoans;
+    window.renderPayments = renderPayments;
+    window.loadData = loadData;
+    window.showPage = showPage;
   });
 </script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
