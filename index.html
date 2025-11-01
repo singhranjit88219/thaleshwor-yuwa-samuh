@@ -44,11 +44,11 @@
     <h4>Thaleshwor Yuwa Samuh</h4>
   </div>
   <nav class="nav flex-column">
-    <a class="nav-link active" href="#" onclick="showPage('dashboard')"><i class="bi bi-speedometer2"></i> Dashboard</a>
-    <a class="nav-link" href="#" onclick="showPage('members')"><i class="bi bi-people"></i> Members</a>
-    <a class="nav-link" href="#" onclick="showPage('savings')"><i class="bi bi-piggy-bank"></i> Savings</a>
-    <a class="nav-link" href="#" onclick="showPage('loans')"><i class="bi bi-cash-stack"></i> Loans</a>
-    <a class="nav-link" href="#" onclick="showPage('payments')"><i class="bi bi-receipt"></i> Payments</a>
+    <a class="nav-link active" href="#" onclick="showPage('dashboard')">Dashboard</a>
+    <a class="nav-link" href="#" onclick="showPage('members')">Members</a>
+    <a class="nav-link" href="#" onclick="showPage('savings')">Savings</a>
+    <a class="nav-link" href="#" onclick="showPage('loans')">Loans</a>
+    <a class="nav-link" href="#" onclick="showPage('payments')">Payments</a>
   </nav>
 </div>
 
@@ -76,7 +76,7 @@
     <p id="loginMsg" class="text-danger text-center mt-2"></p>
   </div>
 
-  <!-- Pages -->
+  <!-- Dashboard -->
   <div id="dashboardPage" class="hidden">
     <h2>Dashboard</h2>
     <p class="text-muted">Cooperative Microfinance Overview</p>
@@ -119,7 +119,7 @@
     </div>
   </div>
 
-  <!-- Members Page -->
+  <!-- Members -->
   <div id="membersPage" class="hidden">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div><h2>Members</h2><p class="text-muted">Manage cooperative members</p></div>
@@ -133,7 +133,7 @@
         </div>
         <div class="table-responsive">
           <table class="table table-hover">
-            <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Join Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Member ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join Date</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="membersTable"></tbody>
           </table>
         </div>
@@ -141,7 +141,7 @@
     </div>
   </div>
 
-  <!-- Other Pages (Savings, Loans, Payments) -->
+  <!-- Savings -->
   <div id="savingsPage" class="hidden">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div><h2>Monthly Savings</h2><p class="text-muted">Track member savings contributions</p></div>
@@ -163,6 +163,7 @@
     </div>
   </div>
 
+  <!-- Loans -->
   <div id="loansPage" class="hidden">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div><h2>Loans</h2><p class="text-muted">Manage member loans and distributions</p></div>
@@ -184,6 +185,7 @@
     </div>
   </div>
 
+  <!-- Payments -->
   <div id="paymentsPage" class="hidden">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div><h2>Loan Payments</h2><p class="text-muted">Track monthly interest and principal payments</p></div>
@@ -212,13 +214,32 @@
 <div class="modal fade" id="memberModal">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header"><h5>Add / Edit Member</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header">
+        <h5 class="modal-title">Add / Edit Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
       <div class="modal-body">
         <input type="hidden" id="editMemberId">
-        <div class="mb-3"><label>Name</label><input id="memberName" class="form-control"></div>
-        <div class="mb-3"><label>Phone</label><input id="memberPhone" class="form-control"></div>
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input id="memberName" class="form-control" placeholder="Full Name">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Phone</label>
+          <input id="memberPhone" class="form-control" placeholder="98XXXXXXXX">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Address</label>
+          <input id="memberAddress" class="form-control" placeholder="Village, Ward, Municipality">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Join Date</label>
+          <input type="date" id="memberJoinDate" class="form-control">
+        </div>
       </div>
-      <div class="modal-footer"><button class="btn btn-primary" onclick="saveMember()">Save</button></div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="saveMember()">Save Member</button>
+      </div>
     </div>
   </div>
 </div>
@@ -262,7 +283,7 @@
 
   let db, isAdmin = false;
   let members = [], savings = [], loans = [], payments = [];
-  let growthChart = null, loanPie = null; // Fixed: local chart references
+  let growthChart = null, loanPie = null;
 
   try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); }
   catch (e) { showError('Firebase init failed: ' + e.message); }
@@ -292,9 +313,8 @@
     document.getElementById('password').value = '';
   }
 
-  // ---------- NAVIGATION ----------
+  // ---------- NAV ----------
   function showPage(page) {
-    // Destroy charts safely
     if (growthChart) { growthChart.destroy(); growthChart = null; }
     if (loanPie) { loanPie.destroy(); loanPie = null; }
 
@@ -346,7 +366,6 @@
     document.getElementById('dashLoans').textContent = 'Rs.' + totalL.toFixed(0);
     document.getElementById('dashGrowth').textContent = growth.toFixed(0) + '%';
 
-    // Growth Chart
     const months = [], savData = [], loanData = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
@@ -366,7 +385,6 @@
       options: { responsive: true }
     });
 
-    // Loan Pie
     const pieLabels = [], pieData = [];
     members.slice(0,5).forEach(m => {
       const amt = loans.filter(l => l.memberId === m.id && l.status !== 'closed').reduce((a,b) => a + b.principal, 0);
@@ -380,7 +398,6 @@
       options: { responsive: true }
     });
 
-    // Defaulters
     const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
     const savDef = members.filter(m => !savings.some(s => s.memberId === m.id && s.month === cur)).length;
     const intDef = loans.filter(l => l.status !== 'closed' && !payments.some(p => p.loanId === l.id && p.month === cur)).length;
@@ -397,7 +414,6 @@
     return prevSav === 0 ? 0 : ((curSav - prevSav) / prevSav) * 100;
   }
 
-  // ---------- ERROR ----------
   function showError(msg) {
     const el = document.getElementById('errorMsg');
     el.textContent = msg;
@@ -415,7 +431,8 @@
         <td>${id}</td>
         <td>${m.name}</td>
         <td>${m.phone || '-'}</td>
-        <td>${m.joinDate || 'Sep 10, 2025'}</td>
+        <td>${m.address || '-'}</td>
+        <td>${m.joinDate || '-'}</td>
         <td><span class="badge bg-success">Active</span></td>
         <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
@@ -429,6 +446,8 @@
     document.getElementById('editMemberId').value = id;
     document.getElementById('memberName').value = m.name;
     document.getElementById('memberPhone').value = m.phone || '';
+    document.getElementById('memberAddress').value = m.address || '';
+    document.getElementById('memberJoinDate').value = m.joinDate || '';
     new bootstrap.Modal(document.getElementById('memberModal')).show();
   }
 
@@ -436,14 +455,22 @@
     document.getElementById('editMemberId').value = '';
     document.getElementById('memberName').value = '';
     document.getElementById('memberPhone').value = '';
+    document.getElementById('memberAddress').value = '';
+    document.getElementById('memberJoinDate').value = new Date().toISOString().split('T')[0]; // Default today
   }
 
   async function saveMember() {
     const id = document.getElementById('editMemberId').value;
-    const data = { name: document.getElementById('memberName').value.trim(), phone: document.getElementById('memberPhone').value.trim() };
-    if (!data.name) return alert('Name required');
+    const name = document.getElementById('memberName').value.trim();
+    const phone = document.getElementById('memberPhone').value.trim();
+    const address = document.getElementById('memberAddress').value.trim();
+    const joinDate = document.getElementById('memberJoinDate').value;
+
+    if (!name || !joinDate) return alert('Name and Join Date are required');
+
+    const data = { name, phone, address, joinDate };
     try {
-      id ? await db.collection('members').doc(id).update(data) : await db.collection('members').add({ ...data, joinDate: new Date().toISOString().split('T')[0] });
+      id ? await db.collection('members').doc(id).update(data) : await db.collection('members').add(data);
       bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
       loadData();
       showPage('members');
@@ -463,8 +490,13 @@
   }
 
   // ---------- SAVINGS ----------
-  function showSavingForm() { document.getElementById('savingForm').classList.remove('hidden'); fillMemberSelect('savingMember'); }
+  function showSavingForm() { 
+    document.getElementById('savingForm').classList.remove('hidden'); 
+    fillMemberSelect('savingMember'); 
+    document.getElementById('savingMonth').value = new Date().toISOString().slice(0,7);
+  }
   function hideSavingForm() { document.getElementById('savingForm').classList.add('hidden'); }
+
   async function saveSaving() {
     const memberId = document.getElementById('savingMember').value;
     const month = document.getElementById('savingMonth').value;
@@ -487,10 +519,17 @@
         <td>${s.month}</td>
         <td>${s.paymentDate || '-'}</td>
         <td><span class="badge bg-success">Paid</span></td>
-        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteSaving('${s.id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
       </tr>`;
     });
     document.getElementById('savingCount').textContent = savings.length;
+  }
+
+  async function deleteSaving(id) {
+    if (confirm('Delete saving record?')) {
+      try { await db.collection('savings').doc(id).delete(); loadData(); showPage('savings'); }
+      catch (e) { alert(e.message); }
+    }
   }
 
   function searchSavings(q) {
@@ -499,8 +538,13 @@
   }
 
   // ---------- LOANS ----------
-  function showLoanForm() { document.getElementById('loanForm').classList.remove('hidden'); fillMemberSelect('loanMember'); }
+  function showLoanForm() { 
+    document.getElementById('loanForm').classList.remove('hidden'); 
+    fillMemberSelect('loanMember'); 
+    document.getElementById('loanDate').value = new Date().toISOString().split('T')[0];
+  }
   function hideLoanForm() { document.getElementById('loanForm').classList.add('hidden'); }
+
   async function saveLoan() {
     const memberId = document.getElementById('loanMember').value;
     const principal = parseFloat(document.getElementById('loanPrincipal').value);
@@ -519,20 +563,28 @@
     tbody.innerHTML = '';
     loans.forEach(l => {
       const m = members.find(x => x.id === l.memberId);
-      const monthlyInt = l.principal * (l.rate/100) / 12;
+      const monthlyInt = (l.principal * (l.rate / 100) / 12).toFixed(2);
       tbody.innerHTML += `<tr>
         <td>${m?.name || 'Unknown'}</td>
         <td>Rs.${l.principal}</td>
         <td>Rs.${l.balance}</td>
         <td>${l.rate}%</td>
-        <td>Rs.${monthlyInt.toFixed(2)}</td>
+        <td>Rs.${monthlyInt}</td>
         <td>${l.startDate}</td>
         <td>${l.duration} months</td>
         <td><span class="badge bg-warning">Active</span></td>
-        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button><button class="btn btn-sm btn-outline-danger ms-1"><i class="bi bi-trash"></i></button>` : ''}</td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editLoan('${l.id}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteLoan('${l.id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
       </tr>`;
     });
     document.getElementById('loanCount').textContent = loans.length;
+  }
+
+  async function deleteLoan(id) {
+    if (confirm('Delete loan?')) {
+      try { await db.collection('loans').doc(id).delete(); loadData(); showPage('loans'); }
+      catch (e) { alert(e.message); }
+    }
   }
 
   function searchLoans(q) {
@@ -571,15 +623,22 @@
       tbody.innerHTML += `<tr>
         <td>${m?.name || 'Unknown'}</td>
         <td>${p.month}</td>
-        <td>Rs.${p.amount}</td>
+        <td>Rs.${p.amount.toFixed(2)}</td>
         <td>Rs.0</td>
-        <td>Rs.${p.amount}</td>
+        <td>Rs.${p.amount.toFixed(2)}</td>
         <td>${p.paymentDate}</td>
         <td><span class="badge bg-success">Paid</span></td>
-        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>` : ''}</td>
+        <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="deletePayment('${p.id}')"><i class="bi bi-trash"></i></button>` : ''}</td>
       </tr>`;
     });
     document.getElementById('paymentCount').textContent = payments.length;
+  }
+
+  async function deletePayment(id) {
+    if (confirm('Delete payment?')) {
+      try { await db.collection('payments').doc(id).delete(); loadData(); showPage('payments'); }
+      catch (e) { alert(e.message); }
+    }
   }
 
   function searchPayments(q) {
