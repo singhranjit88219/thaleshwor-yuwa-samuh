@@ -11,7 +11,7 @@
   <!-- Firebase v9 -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -29,7 +29,8 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
 
-    window.firebaseDB = { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, auth, provider, signInWithPopup, signOut, onAuthStateChanged };
+    // Expose only after full load
+    window.firebaseLoaded = { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, auth, provider, signInWithPopup, signOut, onAuthStateChanged };
   </script>
 
   <style>
@@ -60,57 +61,115 @@
 
 <div class="main-content p-4">
 
-  <!-- LOGIN -->
+  <!-- LOGIN PAGE (Always visible first) -->
   <div id="loginPage" class="container text-center mt-5">
-    <h2>Welcome</h2>
-    <button class="btn btn-primary btn-lg" onclick="googleLogin()">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" class="me-2">
-      Sign in with Google
-    </button>
+    <div class="card mx-auto" style="max-width: 400px;">
+      <div class="card-body">
+        <h3 class="card-title mb-4">Thaleshwor Yuwa Samuh</h3>
+        <p class="text-muted mb-4">Sign in with Google to continue</p>
+        <button id="googleBtn" class="btn btn-primary btn-lg w-100" disabled>
+          <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+        </button>
+      </div>
+    </div>
   </div>
 
-  <!-- PAGES -->
-  <div id="dashboardPage" class="hidden container">...</div>
+  <!-- DASHBOARD -->
+  <div id="dashboardPage" class="hidden container">
+    <h2>Dashboard</h2>
+    <div class="row g-3 mb-4">
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashMembers">0</h5><p>Members</p></div></div></div>
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashSavings">Rs.0</h5><p>Total Savings</p></div></div></div>
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashLoans">Rs.0</h5><p>Active Loans</p></div></div></div>
+      <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 id="dashGrowth">0%</h5><p>Growth</p></div></div></div>
+    </div>
+  </div>
+
+  <!-- MEMBERS PAGE -->
   <div id="membersPage" class="hidden container">
-    <div class="d-flex justify-content-between mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Members <span class="badge bg-primary" id="memberCount">0</span></h2>
       <button id="addMemberBtn" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#memberModal" onclick="clearMemberForm()">Add Member</button>
     </div>
-    <table class="table table-striped">
-      <thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="membersTable"><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
-    </table>
+    <input type="text" class="form-control mb-3 w-25" placeholder="Search..." onkeyup="searchMembers(this.value)">
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead class="table-light">
+          <tr><th>ID</th><th>Name</th><th>Phone</th><th>Address</th><th>Join Date</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="membersTable">
+          <tr><td colspan="7" class="text-center">Loading members...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- MEMBER MODAL -->
-  <div class="modal fade" id="memberModal" tabindex="-1">
-    <div class="modal-dialog"><div class="modal-content">
-      <div class="modal-header"><h5>Add / Edit Member</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+</div>
+
+<!-- MEMBER MODAL -->
+<div class="modal fade" id="memberModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add / Edit Member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
       <div class="modal-body">
         <input type="hidden" id="editMemberId">
-        <div class="mb-3"><label>Name *</label><input type="text" id="memberName" class="form-control"></div>
-        <div class="mb-3"><label>Phone</label><input type="text" id="memberPhone" class="form-control"></div>
-        <div class="mb-3"><label>Address</label><input type="text" id="memberAddress" class="form-control"></div>
-        <div class="mb-3"><label>Join Date *</label><input type="date" id="memberJoinDate" class="form-control"></div>
+        <div class="mb-3">
+          <label class="form-label">Name <span class="text-danger">*</span></label>
+          <input type="text" id="memberName" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Phone</label>
+          <input type="text" id="memberPhone" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Address</label>
+          <input type="text" id="memberAddress" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Join Date <span class="text-danger">*</span></label>
+          <input type="date" id="memberJoinDate" class="form-control" required>
+        </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-primary" onclick="saveMember()">Save</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveMember()">
+          <span id="saveSpinner" class="spinner-border spinner-border-sm me-2 hidden"></span>
+          Save
+        </button>
       </div>
-    </div></div>
+    </div>
   </div>
 </div>
 
 <script>
+  // Wait for Firebase to fully load
+  const waitForFirebase = async () => {
+    while (!window.firebaseLoaded) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return window.firebaseLoaded;
+  };
+
   document.addEventListener('DOMContentLoaded', async () => {
-    while (!window.firebaseDB) await new Promise(r => setTimeout(r, 50));
-    const { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, auth, provider, signInWithPopup, signOut, onAuthStateChanged } = window.firebaseDB;
+    const { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, auth, provider, signInWithPopup, signOut, onAuthStateChanged } = await waitForFirebase();
 
     let user = null;
     let isAdmin = false;
     let members = [];
 
-    // AUTH
+    // Enable Google button
+    const googleBtn = document.getElementById('googleBtn');
+    googleBtn.innerHTML = `
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" class="me-2">
+      Sign in with Google
+    `;
+    googleBtn.disabled = false;
+    googleBtn.onclick = () => signInWithPopup(auth, provider);
+
+    // Auth state
     onAuthStateChanged(auth, async (u) => {
       user = u;
       if (u) {
@@ -119,62 +178,94 @@
         document.getElementById('currentUser').textContent = u.displayName + (isAdmin ? ' (Admin)' : ' (Viewer)');
         document.getElementById('loginPage').classList.add('hidden');
         document.getElementById('dashboardPage').classList.remove('hidden');
-        loadAllData();
+        document.getElementById('addMemberBtn').classList.toggle('hidden', !isAdmin);
+        loadMembers();
       } else {
         document.getElementById('loginPage').classList.remove('hidden');
         document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
+        document.getElementById('currentUser').textContent = 'Guest';
       }
     });
 
-    window.googleLogin = () => signInWithPopup(auth, provider);
     window.logout = () => signOut(auth);
 
-    // SECURE SAVE
+    window.showPage = (page) => {
+      document.querySelectorAll('.main-content > div[id$="Page"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById(page + 'Page').classList.remove('hidden');
+      if (page === 'members') loadMembers();
+    };
+
+    // Load Members
+    async function loadMembers() {
+      try {
+        const snap = await getDocs(collection(db, 'members'));
+        members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderMembers();
+      } catch (e) {
+        alert('Load failed: ' + e.message);
+      }
+    }
+
+    function renderMembers() {
+      const tbody = document.getElementById('membersTable');
+      tbody.innerHTML = '';
+      if (members.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No members yet.</td></tr>';
+        document.getElementById('memberCount').textContent = '0';
+        return;
+      }
+      members.forEach((m, i) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>M${String(i+1).padStart(3,'0')}</td>
+          <td>${m.name}</td>
+          <td>${m.phone || '-'}</td>
+          <td>${m.address || '-'}</td>
+          <td>${m.joinDate}</td>
+          <td><span class="badge bg-success">Active</span></td>
+          <td>
+            ${isAdmin ? `
+              <button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')"><i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')"><i class="bi bi-trash"></i></button>
+            ` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+      document.getElementById('memberCount').textContent = members.length;
+    }
+
+    // Save Member
     window.saveMember = async () => {
       if (!isAdmin) return alert('Only admin can save');
       const id = document.getElementById('editMemberId').value;
+      const name = document.getElementById('memberName').value.trim();
+      const joinDate = document.getElementById('memberJoinDate').value;
+      if (!name || !joinDate) return alert('Name and Join Date required');
+
       const data = {
-        name: document.getElementById('memberName').value.trim(),
+        name,
         phone: document.getElementById('memberPhone').value.trim(),
         address: document.getElementById('memberAddress').value.trim(),
-        joinDate: document.getElementById('memberJoinDate').value
+        joinDate
       };
-      if (!data.name || !data.joinDate) return alert('Fill required');
 
+      const spinner = document.getElementById('saveSpinner');
+      spinner.classList.remove('hidden');
       try {
         if (id) {
           await updateDoc(doc(db, 'members', id), data);
         } else {
           await addDoc(collection(db, 'members'), data);
         }
-        loadAllData();
+        loadMembers();
         bootstrap.Modal.getInstance(document.getElementById('memberModal')).hide();
-      } catch (e) { alert('Save failed: ' + e.message); }
+      } catch (e) {
+        alert('Save failed: ' + e.message);
+      } finally {
+        spinner.classList.add('hidden');
+      }
     };
-
-    async function loadAllData() {
-      const snap = await getDocs(collection(db, 'members'));
-      members = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderMembers();
-    }
-
-    function renderMembers() {
-      const tbody = document.getElementById('membersTable');
-      tbody.innerHTML = '';
-      members.forEach((m, i) => {
-        tbody.innerHTML += `<tr>
-          <td>M${String(i+1).padStart(3,'0')}</td>
-          <td>${m.name}</td>
-          <td>${m.phone||'-'}</td>
-          <td>${m.address||'-'}</td>
-          <td>${m.joinDate}</td>
-          <td><span class="badge bg-success">Active</span></td>
-          <td>${isAdmin ? `<button class="btn btn-sm btn-outline-primary" onclick="editMember('${m.id}')">Edit</button>
-          <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteMember('${m.id}')">Delete</button>` : ''}</td>
-        </tr>`;
-      });
-      document.getElementById('memberCount').textContent = members.length;
-    }
 
     window.editMember = (id) => {
       const m = members.find(x => x.id === id);
@@ -196,11 +287,21 @@
 
     window.deleteMember = async (id) => {
       if (!isAdmin) return;
-      if (confirm('Delete?')) {
+      if (confirm('Delete this member?')) {
         await deleteDoc(doc(db, 'members', id));
-        loadAllData();
+        loadMembers();
       }
     };
+
+    window.searchMembers = (q) => {
+      const rows = document.querySelectorAll('#membersTable tr');
+      rows.forEach(r => {
+        r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
+      });
+    };
+
+    // Expose
+    window.loadMembers = loadMembers;
   });
 </script>
 
